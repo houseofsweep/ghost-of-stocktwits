@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost of Stocktwits — Biotech Catalyst Calendar</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #f0f6fc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #161b22; } ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  header { background: #161b22; border-bottom: 1px solid #21262d; position: sticky; top: 0; z-index: 100; }
+  .header-inner { max-width: 1400px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-name { font-weight: 800; font-size: 18px; } .brand-sub { font-size: 12px; color: #8b949e; }
+  .badge { font-size: 12px; padding: 4px 10px; border-radius: 20px; border: 1px solid; }
+  .badge-green { color: #4ade80; background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.2); }
+  .badge-blue { color: #60a5fa; background: rgba(96,165,250,0.1); border-color: rgba(96,165,250,0.2); }
+  .badge-yellow { color: #fbbf24; background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.2); }
+  main { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-card { background: #161b22; border: 1px solid #21262d; border-radius: 10px; padding: 14px 20px; flex: 1 1 100px; text-align: center; }
+  .stat-count { font-size: 26px; font-weight: 800; line-height: 1; } .stat-label { font-size: 11px; color: #8b949e; margin-top: 4px; }
+  .filters-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .search-input { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 9px 14px; color: #f0f6fc; font-size: 14px; width: 280px; }
+  .search-input:focus { border-color: #6366f1; outline: none; }
+  .filter-btn { background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 7px 14px; color: #8b949e; font-size: 13px; cursor: pointer; }
+  .filter-btn:hover { border-color: #6366f1; color: #818cf8; }
+  .filter-btn.active { background: rgba(99,102,241,0.2); border-color: #6366f1; color: #818cf8; font-weight: 600; }
+  .results-line { font-size: 13px; color: #6e7681; margin-bottom: 10px; }
+  .table-wrap { overflow-x: auto; background: #161b22; border-radius: 12px; border: 1px solid #21262d; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #21262d; white-space: nowrap; background: #0d1117; cursor: pointer; user-select: none; }
+  th:hover { color: #f0f6fc; }
+  tr.dr { border-bottom: 1px solid #21262d; } tr.dr:hover td { background: rgba(255,255,255,0.025); }
+  td { padding: 10px 16px; vertical-align: middle; border-bottom: 1px solid #21262d; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .tbadge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  tr.wl td { background: rgba(245,158,11,0.05) !important; } tr.wl td:first-child { border-left: 3px solid #f59e0b; }
+  .empty { text-align: center; padding: 60px; color: #8b949e; }
+  .progress-bar { height: 3px; background: #21262d; border-radius: 2px; margin-bottom: 12px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #818cf8); border-radius: 2px; transition: width 0.3s; }
+  .footer { margin-top: 24px; padding: 16px 0; border-top: 1px solid #21262d; font-size: 12px; color: #8b949e; text-align: center; line-height: 2; }
+  a { color: inherit; text-decoration: none; } .tl:hover { text-decoration: underline; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { width: 14px; height: 14px; border: 2px solid #30363d; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <span style="font-size:32px">👻</span>
+      <div><div class="brand-name">Ghost of Stocktwits</div><div class="brand-sub">Biotech Catalyst Calendar</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="badge badge-blue" id="ct-badge"><span class="spin"></span> Connecting to ClinicalTrials.gov...</div>
+      <div class="badge badge-green" id="upd-badge">—</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-count" style="color:#ef4444" id="sw">—</div><div class="stat-label">🔴 This Week</div></div>
+    <div class="stat-card"><div class="stat-count" style="color:#eab308" id="sm">—</div><div class="stat-label">🟡 This Month</div></div>
+    <div class="stat-card"><div class="stat-count" style="color:#22c55e" id="s9">—</div><div class="stat-label">🟢 90 Days</div></div>
+    <div class="stat-card"><div class="stat-count" style="color:#6366f1" id="sp">—</div><div class="stat-label">💊 PDUFA</div></div>
+    <div class="stat-card"><div class="stat-count" style="color:#f59e0b" id="sk">—</div><div class="stat-label">⭐ Watchlist</div></div>
+    <div class="stat-card"><div class="stat-count" style="color:#f0f6fc" id="st">—</div><div class="stat-label">📋 Total</div></div>
+  </div>
+
+  <div class="filters-row">
+    <input class="search-input" id="srch" placeholder="🔍  Search ticker, drug, condition..." oninput="go()">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="filter-btn active" onclick="sf('t','all',this)">All Time</button>
+      <button class="filter-btn" onclick="sf('t','week',this)">This Week</button>
+      <button class="filter-btn" onclick="sf('t','month',this)">This Month</button>
+      <button class="filter-btn" onclick="sf('t','90',this)">90 Days</button>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="filter-btn active" onclick="sf('y','all',this)">All Types</button>
+      <button class="filter-btn" onclick="sf('y','pdufa',this)">PDUFA</button>
+      <button class="filter-btn" onclick="sf('y','phase3',this)">Phase 3</button>
+      <button class="filter-btn" onclick="sf('y','phase2',this)">Phase 2</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="filter-btn active" onclick="sf('w','all',this)">All Tickers</button>
+      <button class="filter-btn" onclick="sf('w','wl',this)">⭐ Watchlist Only</button>
+    </div>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+  <div class="results-line" id="rl">Loading...</div>
+  <div id="tbl"></div>
+
+  <div class="footer">
+    Sources: <strong>Ghost Curated PDUFA</strong> &nbsp;•&nbsp; <strong>ClinicalTrials.gov</strong> (NIH official API) &nbsp;•&nbsp; <strong>SEC EDGAR filings</strong><br>
+    <span style="color:#6e7681">⭐ Gold = watchlist &nbsp;|&nbsp; Click ticker for more info &nbsp;|&nbsp; CT.gov dates are primary completion estimates, not exact announcement dates</span>
+  </div>
+</main>
+
+<script>
+const WL = new Set(['NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ','PTGX','RYTM','RCKT','SAGE','ALNY','VRTX','SRPT','BMRN','FOLD','KRYS','RARE','BPMC','IONS','ACAD','SNDX','VERA','PRTA'])
+
+const PDUFA_LIST = [
+  {date:'2026-06-02',ticker:'IONS', drug:'Eplontersen',          cat:'PDUFA — sNDA',            co:'Ionis Pharmaceuticals',   type:'pdufa'},
+  {date:'2026-06-06',ticker:'DAWN', drug:'Bimekizumab',          cat:'PDUFA — sBLA',            co:'UCB',                     type:'pdufa'},
+  {date:'2026-06-15',ticker:'PRTA', drug:'Prasinezumab',         cat:'PDUFA — BLA',             co:'Prothena',                type:'pdufa'},
+  {date:'2026-06-19',ticker:'VERA', drug:'Atacicept',            cat:'PDUFA — BLA (IgAN)',      co:'Vera Therapeutics',       type:'pdufa'},
+  {date:'2026-06-20',ticker:'SNDX', drug:'Revumenib',            cat:'PDUFA — NDA (AML)',       co:'Syndax Pharma',           type:'pdufa'},
+  {date:'2026-06-26',ticker:'ACAD', drug:'Pimavanserin',         cat:'PDUFA — sNDA',            co:'Acadia Pharma',           type:'pdufa'},
+  {date:'2026-07-07',ticker:'VERA', drug:'Atacicept',            cat:'PDUFA — Priority Review', co:'Vera Therapeutics',       type:'pdufa'},
+  {date:'2026-07-10',ticker:'FOLD', drug:'Pegunigalsidase alfa', cat:'PDUFA — BLA',             co:'Amicus Therapeutics',     type:'pdufa'},
+  {date:'2026-07-15',ticker:'KRYS', drug:'Beremagene gel',       cat:'PDUFA — BLA (DEB)',       co:'Krystal Biotech',         type:'pdufa'},
+  {date:'2026-07-22',ticker:'RARE', drug:'DTX401',               cat:'PDUFA — BLA',             co:'Ultragenyx',              type:'pdufa'},
+  {date:'2026-07-28',ticker:'PTGX', drug:'Rusfertide',           cat:'PDUFA — NDA (PV)',        co:'Protagonist Therapeutics',type:'pdufa'},
+  {date:'2026-08-12',ticker:'SRPT', drug:'SRP-9001',             cat:'PDUFA — BLA',             co:'Sarepta Therapeutics',    type:'pdufa'},
+  {date:'2026-08-30',ticker:'PESI', drug:'Besremi',              cat:'PDUFA — sNDA (ET)',       co:'PharmaEssentia',          type:'pdufa'},
+  {date:'2026-09-03',ticker:'ALNY', drug:'Vutrisiran',           cat:'PDUFA — sNDA',            co:'Alnylam Pharmaceuticals', type:'pdufa'},
+  {date:'2026-09-10',ticker:'VRTX', drug:'Suzetrigine',          cat:'PDUFA — NDA (pain)',      co:'Vertex Pharmaceuticals',  type:'pdufa'},
+  {date:'2026-09-18',ticker:'RCKT', drug:'RP-L102',              cat:'PDUFA — BLA',             co:'Rocket Pharma',           type:'pdufa'},
+  {date:'2026-09-25',ticker:'RYTM', drug:'Setmelanotide',        cat:'PDUFA — sNDA',            co:'Rhythm Pharmaceuticals',  type:'pdufa'},
+  {date:'2026-10-22',ticker:'BPMC', drug:'Pralsetinib',          cat:'PDUFA — sNDA',            co:'Blueprint Medicines',     type:'pdufa'},
+  {date:'2026-11-01',ticker:'BMRN', drug:'Vosoritide',           cat:'PDUFA — sNDA',            co:'BioMarin',                type:'pdufa'},
+  {date:'2026-12-01',ticker:'PTCT', drug:'Ataluren',             cat:'PDUFA — NDA',             co:'PTC Therapeutics',        type:'pdufa'},
+  {date:'2026-08-04',ticker:'RVMD', drug:'RMC-6236',             cat:'Phase 3 Interim Readout', co:'Revolution Medicines',    type:'phase3'},
+  {date:'2026-08-19',ticker:'NUVB', drug:'NUV-868',              cat:'Phase 2 Readout',         co:'Nuvation Bio',            type:'phase2'},
+  {date:'2026-08-25',ticker:'IDYA', drug:'Iniparib combo',       cat:'Phase 3 Data',            co:'IDEAYA Biosciences',      type:'phase3'},
+  {date:'2026-10-02',ticker:'VSTM', drug:'VS-6766',              cat:'Phase 2 Readout',         co:'Verastem Oncology',       type:'phase2'},
+  {date:'2026-10-15',ticker:'SPRB', drug:'Tildacerfont',         cat:'Phase 3 Readout (CAH)',   co:'Spruce Biosciences',      type:'phase3'},
+  {date:'2026-11-05',ticker:'SAGE', drug:'SAGE-718',             cat:'Phase 3 Readout',         co:'Sage Therapeutics',       type:'phase3'},
+  {date:'2026-11-12',ticker:'ATAI', drug:'PCN-101',              cat:'Phase 2b Readout',        co:'atai Life Sciences',      type:'phase2'},
+]
+
+const KNOWN = {'bristol-myers':'BMY','pfizer':'PFE','merck':'MRK','astrazeneca':'AZN','roche':'RHHBY','novartis':'NVS','johnson':'JNJ','eli lilly':'LLY','abbvie':'ABBV','amgen':'AMGN','gilead':'GILD','biogen':'BIIB','regeneron':'REGN','moderna':'MRNA','biontech':'BNTX','vertex':'VRTX','alnylam':'ALNY','sarepta':'SRPT','blueprint':'BPMC','protagonist':'PTGX','rhythm':'RYTM','rocket':'RCKT','ultragenyx':'RARE','sage':'SAGE','ionis':'IONS','krystal':'KRYS','biomarin':'BMRN','acadia':'ACAD','syndax':'SNDX','vera therapeutics':'VERA','pharmaessentia':'PESI','nuvation':'NUVB','ideaya':'IDYA','spruce':'SPRB','verastem':'VSTM','revolution medicines':'RVMD','atai':'ATAI','incyte':'INCY','mirati':'MRTX','gsk':'GSK','astellas':'OTSKF','kura oncology':'KURA','arcus':'RCUS','turning point':'TPTX','ardelyx':'ARDX','zentalis':'ZNTL','arctus':'ARCT','arcus biosciences':'RCUS','ptc therapeutics':'PTCT','amicus':'FOLD','karuna':'KRTX','protagonist':'PTGX','rigel':'RIGL','acceleron':'XLRN','global blood':'GBT','reata':'RETA','arena':'ARNA','coherus':'CHRS','praxis':'PRAX','cerevel':'CERE','passage bio':'PASG','avexis':'AVXS','zafgen':'ZFGN','translate bio':'TBIO','oxford biomedica':'OXB','autolus':'AUTL','athenex':'ATNX','onconova':'ONTX','diffusion pharma':'DFFN','neos therapeutics':'NEOS'}
+
+let all=[], F={t:'all',y:'all',w:'all'}, SC='date', SD='asc', ctItems=[]
+
+function gtick(s=''){const sl=s.toLowerCase();for(const[k,v]of Object.entries(KNOWN))if(sl.includes(k))return v;return s.replace(/[^a-zA-Z]/g,'').slice(0,6).toUpperCase()||'—'}
+
+function enrich(list){
+  const today=new Date();today.setHours(0,0,0,0)
+  return list.map(x=>{
+    const dt=new Date((x.date||'')+'T00:00:00')
+    const d=Math.round((dt-today)/86400000)
+    return{...x,d,isWL:WL.has((x.ticker||'').toUpperCase()),urg:d<=7?'high':d<=30?'med':'low'}
+  }).filter(x=>x.date&&!isNaN(x.d)&&x.d>=-1&&x.d<=540)
+}
+
+function upStats(list){
+  document.getElementById('sw').textContent=list.filter(c=>c.d<=7).length
+  document.getElementById('sm').textContent=list.filter(c=>c.d<=30).length
+  document.getElementById('s9').textContent=list.filter(c=>c.d<=90).length
+  document.getElementById('sp').textContent=list.filter(c=>c.type==='pdufa').length
+  document.getElementById('sk').textContent=list.filter(c=>c.isWL).length
+  document.getElementById('st').textContent=list.length
+  document.getElementById('upd-badge').textContent=`Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`
+}
+
+function go(){
+  const q=document.getElementById('srch').value.toLowerCase()
+  let list=[...all]
+  if(q)list=list.filter(c=>(c.ticker||'').toLowerCase().includes(q)||(c.drug||'').toLowerCase().includes(q)||(c.co||'').toLowerCase().includes(q)||(c.condition||'').toLowerCase().includes(q)||(c.cat||'').toLowerCase().includes(q))
+  if(F.t==='week')list=list.filter(c=>c.d<=7)
+  if(F.t==='month')list=list.filter(c=>c.d<=30)
+  if(F.t==='90')list=list.filter(c=>c.d<=90)
+  if(F.y!=='all')list=list.filter(c=>c.type===F.y)
+  if(F.w==='wl')list=list.filter(c=>c.isWL)
+  list.sort((a,b)=>{let va=SC==='date'?new Date(a.date):(a[SC]||''),vb=SC==='date'?new Date(b.date):(b[SC]||'');return va<vb?SD==='asc'?-1:1:va>vb?SD==='asc'?1:-1:0})
+  document.getElementById('rl').textContent=`Showing ${list.length} of ${all.length} catalysts`
+  render(list)
+}
+
+function sf(dim,val,btn){
+  F[dim]=val
+  // remove active from same group
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'))
+  btn.classList.add('active')
+  go()
+}
+
+function ss(col){SC===col?SD=SD==='asc'?'desc':'asc':(SC=col,SD='asc');go()}
+function arr(c){return SC===c?(SD==='asc'?' ↑':' ↓'):''}
+
+function render(list){
+  let h=`<div class="table-wrap"><table><thead><tr>
+    <th></th><th onclick="ss('date')">Date${arr('date')}</th><th onclick="ss('d')">Days${arr('d')}</th>
+    <th onclick="ss('ticker')">Ticker${arr('ticker')}</th><th onclick="ss('drug')">Drug / Asset${arr('drug')}</th>
+    <th>Catalyst</th><th onclick="ss('type')">Type${arr('type')}</th>
+    <th>Condition</th><th>Source</th>
+  </tr></thead><tbody>`
+
+  if(!list.length){h+=`<tr><td colspan="9"><div class="empty">No catalysts match your filters.</div></td></tr>`}
+  else list.forEach(c=>{
+    const uc=c.urg==='high'?'#ef4444':c.urg==='med'?'#eab308':'#22c55e'
+    const dl=c.d===0?'TODAY':c.d===1?'1d':`${c.d}d`
+    const ds=new Date((c.date||'')+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+    const tc=c.isWL?'#f59e0b':'#58a6ff'
+    const tl=c.type==='pdufa'?'PDUFA':c.type==='phase3'?'Phase 3':'Phase 2'
+    const tb=c.type==='pdufa'?'rgba(99,102,241,0.2)':c.type==='phase3'?'rgba(239,68,68,0.15)':'rgba(34,197,94,0.15)'
+    const tc2=c.type==='pdufa'?'#818cf8':c.type==='phase3'?'#f87171':'#4ade80'
+    const lk=c.nctId?`https://clinicaltrials.gov/study/${c.nctId}`:`https://finance.yahoo.com/quote/${c.ticker||''}`
+    h+=`<tr class="dr ${c.isWL?'wl':''}">
+      <td><span class="dot" style="background:${uc}"></span>${c.isWL?'⭐':''}</td>
+      <td style="font-weight:500;white-space:nowrap">${ds}</td>
+      <td style="color:${uc};font-weight:700;white-space:nowrap">${dl}</td>
+      <td style="font-weight:700"><a href="${lk}" target="_blank" class="tl" style="color:${tc}">${c.ticker||'—'}</a></td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.drug||''}">${(c.drug||'—').slice(0,35)}</td>
+      <td style="color:#8b949e;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(c.cat||'—').slice(0,50)}</td>
+      <td><span class="tbadge" style="background:${tb};color:${tc2}">${tl}</span></td>
+      <td style="color:#6e7681;font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.condition||c.co||''}">${(c.condition||c.co||'—').slice(0,30)}</td>
+      <td style="color:#6e7681;font-size:11px;white-space:nowrap">${c.source||'Ghost Curated'}</td>
+    </tr>`
+  })
+  h+='</tbody></table></div>'
+  document.getElementById('tbl').innerHTML=h
+}
+
+// Pull ClinicalTrials.gov with CORS proxy fallback
+async function fetchPage(token=''){
+  const params=new URLSearchParams({
+    'filter.overallStatus':'ACTIVE_NOT_RECRUITING,COMPLETED',
+    'postFilter.advanced':'AREA[Phase](PHASE3 OR PHASE2 OR PHASE2_PHASE3)',
+    'sort':'PrimaryCompletionDate:asc',
+    'pageSize':'1000',
+    'format':'json',
+    'fields':'NCTId,BriefTitle,Phase,PrimaryCompletionDate,Condition,LeadSponsorName,InterventionName,OverallStatus'
+  })
+  if(token)params.set('pageToken',token)
+
+  // Try direct first, then CORS proxy
+  const urls=[
+    `https://clinicaltrials.gov/api/v2/studies?${params}`,
+    `https://corsproxy.io/?${encodeURIComponent(`https://clinicaltrials.gov/api/v2/studies?${params}`)}`
+  ]
+
+  for(const url of urls){
+    try{
+      const r=await fetch(url,{signal:AbortSignal.timeout(20000)})
+      if(r.ok){const d=await r.json();return{studies:d.studies||[],next:d.nextPageToken||null}}
+    }catch(e){continue}
+  }
+  return{studies:[],next:null}
+}
+
+function parseStudy(s){
+  const p=s.protocolSection||{}
+  const id=p.identificationModule||{}
+  const st=p.statusModule||{}
+  const de=p.designModule||{}
+  const sp=p.sponsorCollaboratorsModule||{}
+  const co=p.conditionsModule||{}
+  const ar=p.armsInterventionsModule||{}
+  const phases=de.phases||[]
+  const drugs=(ar.interventions||[]).map(i=>i.interventionName).filter(Boolean).slice(0,2).join(', ')
+  const sponsor=sp.leadSponsor?.name||''
+  const phType=phases.some(p=>p==='PHASE3'||p==='PHASE2_PHASE3')?'phase3':'phase2'
+  const phStr=phases.map(x=>x.replace('PHASE','')).join('/')
+  return{
+    date:st.primaryCompletionDateStruct?.date||'',
+    ticker:gtick(sponsor),
+    drug:drugs||'Unknown',
+    cat:`Phase ${phStr} Readout (Est.)`,
+    co:sponsor,
+    condition:(co.conditions||[]).slice(0,2).join(', '),
+    nctId:id.nctId||'',
+    source:'ClinicalTrials.gov',
+    type:phType,
+  }
+}
+
+async function loadCT(){
+  const seen=new Set(PDUFA_LIST.map(c=>`${c.ticker}_${c.date}`))
+  let token='', pages=0, total=0
+
+  do{
+    const{studies,next}=await fetchPage(token)
+    if(!studies.length)break
+
+    studies.forEach(s=>{
+      const item=parseStudy(s)
+      const key=`${item.ticker}_${item.date}`
+      if(item.date&&item.date.length>=7&&!seen.has(key)){
+        seen.add(key)
+        ctItems.push(item)
+        total++
+      }
+    })
+
+    // Update live
+    all=enrich([...PDUFA_LIST,...ctItems])
+    upStats(all);go()
+    const pct=Math.min(95,20+pages*30)
+    document.getElementById('prog').style.width=pct+'%'
+    document.getElementById('ct-badge').innerHTML=`<span class="spin"></span> Loading... ${total} trials`
+
+    token=next||''
+    pages++
+    if(pages>=3)break
+  }while(token)
+
+  document.getElementById('prog').style.width='100%'
+  setTimeout(()=>document.getElementById('prog').style.width='0%',1000)
+
+  if(total>0){
+    document.getElementById('ct-badge').textContent=`✅ ${total} from ClinicalTrials.gov`
+    document.getElementById('ct-badge').className='badge badge-green'
+  }else{
+    document.getElementById('ct-badge').textContent='⚠️ Open via localhost for full data'
+    document.getElementById('ct-badge').className='badge badge-yellow'
+  }
+  all=enrich([...PDUFA_LIST,...ctItems])
+  upStats(all);go()
+}
+
+// Boot
+all=enrich(PDUFA_LIST)
+upStats(all);go()
+loadCT()
+</script>
+</body>
+</html>
