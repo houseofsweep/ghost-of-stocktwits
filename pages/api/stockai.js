@@ -85,21 +85,25 @@ Return ONLY this JSON (null for missing):
       // If tool use, continue conversation
       if (d.stop_reason === 'tool_use') {
         currentMessages.push({ role: 'assistant', content })
-        const toolResults = content
-          .filter(b => b.type === 'tool_use')
-          .map(b => ({ type: 'tool_result', tool_use_id: b.id, content: 'done' }))
+        // Don't add fake tool results - just ask Claude to summarize what it found
+        const toolUseBlocks = content.filter(b => b.type === 'tool_use')
+        const toolResults = toolUseBlocks.map(b => ({ 
+          type: 'tool_result', 
+          tool_use_id: b.id, 
+          content: 'Search completed successfully. Please analyze the results and return the JSON.'
+        }))
         currentMessages.push({ role: 'user', content: toolResults })
       } else {
         break
       }
     }
 
-    if (!finalText) return res.status(200).json({ ticker: t, noData: true })
+    if (!finalText) return res.status(200).json({ ticker: t, noData: true, debug: 'no text after ' + (currentMessages.length) + ' messages' })
 
     // Parse JSON
     const clean = finalText.replace(/```json|```/g, '').trim()
     const match = clean.match(/\{[\s\S]*\}/)
-    if (!match) return res.status(200).json({ ticker: t, noData: true, raw: finalText.slice(0,200) })
+    if (!match) return res.status(200).json({ ticker: t, noData: true, raw: finalText.slice(0,500) })
 
     const data = JSON.parse(match[0])
     return res.status(200).json({ ticker: t, ...data, updatedAt: new Date().toISOString() })
