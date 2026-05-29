@@ -3,7 +3,7 @@ import Head from 'next/head'
 import { getSession } from '../lib/session'
 
 const DEFAULT_WATCHLIST = ['NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ']
-const DISCORD_INVITE = 'https://discord.gg/YOUR_INVITE_LINK'
+const DISCORD_INVITE = 'https://discord.gg/HkY9F7eNJz'
 
 const EVENT_TYPES = {
   pdufa:        { label: 'PDUFA',          color: '#ef4444', bg: 'rgba(239,68,68,0.18)',    icon: '💊' },
