@@ -3,7 +3,7 @@ import Head from 'next/head'
 import { getSession } from '../lib/session'
 
 const DEFAULT_WATCHLIST = ['NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ']
-const DISCORD_INVITE = 'https://discord.gg/YOUR_INVITE_LINK'
+const DISCORD_INVITE = 'https://discord.gg/WnBaWq7GUs'
 
 export async function getServerSideProps({ req, res }) {
   const session = await getSession(req, res)
