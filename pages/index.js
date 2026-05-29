@@ -291,15 +291,16 @@ export default function Home({ initialUser }) {
             <div style={s.statsRow}>
               {[
                 { label: '📅 Total', count: upcoming.length, color: '#e6edf3' },
-                { label: '🔥 This Week', count: weekCount, color: '#ef4444' },
-                { label: '💊 PDUFA', count: pduCount, color: '#ef4444' },
-                { label: '🔬 Phase 3', count: ph3Count, color: '#f87171' },
-                { label: '⭐ My Stars', count: myStarHits.length, color: '#f59e0b' },
+                { label: '🔥 This Week', count: weekCount, color: '#ef4444', filterFn: () => setTimeFilter('week') },
+                { label: '💊 PDUFA', count: pduCount, color: '#ef4444', filterType: 'pdufa' },
+                { label: '💰 Earnings', count: upcoming.filter(c => c.inferredType === 'earnings').length, color: '#fbbf24', filterType: 'earnings' },
+                { label: '⭐ My Stars', count: myStarHits.length, color: '#f59e0b', filterFn: () => setStarFilter(p => !p) },
                 { label: '📁 Past', count: past.length, color: '#6e7681', clickable: true },
               ].map(stat => (
                 <div key={stat.label}
-                  style={{ ...s.statCard, cursor: stat.clickable ? 'pointer' : 'default', border: showPast && stat.clickable ? '1px solid #6366f1' : '1px solid #21262d' }}
-                  onClick={stat.clickable ? () => setShowPast(p => !p) : undefined}
+                  style={{ ...s.statCard, cursor: (stat.clickable || stat.filterType) ? 'pointer' : 'default',
+                    border: (showPast && stat.clickable) || (stat.filterType && selectedTypes.includes(stat.filterType)) ? '1px solid #6366f1' : '1px solid #21262d' }}
+                  onClick={stat.clickable ? () => setShowPast(p => !p) : stat.filterType ? () => toggleType(stat.filterType) : stat.filterFn ? stat.filterFn : undefined}
                 >
                   <div style={{ fontSize: 22, fontWeight: 800, color: stat.color, lineHeight: 1 }}>{stat.count}</div>
                   <div style={{ fontSize: 11, color: '#8b949e', marginTop: 3 }}>{stat.label}</div>
