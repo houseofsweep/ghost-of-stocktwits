@@ -532,8 +532,56 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=1800')
 
   const today = new Date(); today.setHours(0, 0, 0, 0)
+  const FMP = process.env.FMP_API_KEY
 
-  const enriched = ALL_CATALYSTS
+  // Pull live earnings from FMP in parallel with static data
+  let liveEarnings = []
+  try {
+    const endDate = new Date(); endDate.setDate(endDate.getDate() + 120)
+    const r = await fetch(
+      `https://financialmodelingprep.com/stable/earnings-calendar?from=${today.toISOString().split('T')[0]}&to=${endDate.toISOString().split('T')[0]}&apikey=${FMP}`
+    )
+    if (r.ok) {
+      const data = await r.json()
+      if (Array.isArray(data)) {
+        liveEarnings = data
+          .filter(e => e.symbol && e.date)
+          .map(e => {
+            const epsStr = e.epsEstimated != null ? `EPS est: ${e.epsEstimated >= 0?'+':''}${e.epsEstimated}` : ''
+            const revStr = e.revenueEstimated != null ? `Rev est: $${(e.revenueEstimated/1e6).toFixed(0)}M` : ''
+            const detail = [epsStr, revStr].filter(Boolean).join(' · ')
+            return {
+              date: e.date,
+              ticker: e.symbol,
+              drug: 'Earnings',
+              catalyst: `Earnings Report${detail ? ' — ' + detail : ''}`,
+              company: e.symbol,
+              condition: detail,
+              nctId: '',
+              type: 'earnings',
+              source: 'FMP Live',
+              epsEstimated: e.epsEstimated ?? null,
+              revenueEstimated: e.revenueEstimated ?? null,
+            }
+          })
+      }
+    }
+  } catch {}
+
+  // Remove manually curated earnings (replaced by live data)
+  const staticCatalysts = ALL_CATALYSTS.filter(c => c.type !== 'earnings')
+
+  // Merge static catalysts + live earnings, dedupe by ticker+date
+  const allRaw = [...staticCatalysts, ...liveEarnings]
+  const seen = new Set()
+  const deduped = allRaw.filter(x => {
+    const key = `${x.ticker}_${x.date}_${x.type}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  const enriched = deduped
     .map(x => {
       const daysOut = Math.round((new Date((x.date || '') + 'T00:00:00') - today) / 86400000)
       return {
@@ -553,6 +601,8 @@ export default async function handler(req, res) {
       pdufa: enriched.filter(c => c.type === 'pdufa').length,
       phase3: enriched.filter(c => c.type === 'phase3').length,
       phase2: enriched.filter(c => c.type === 'phase2').length,
+      earnings: enriched.filter(c => c.type === 'earnings').length,
+      liveEarnings: liveEarnings.length,
       updated: new Date().toISOString(),
     }
   })
