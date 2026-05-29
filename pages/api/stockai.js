@@ -76,9 +76,21 @@ Search for: short float, IV rank, recent SEC 8-K filings with warrant/offering d
 
     if (!text) return await knowledgeFallback(t, ANTHRO, res)
 
-    const clean = text.replace(/```json|```/g, '').trim()
+    // Strip all markdown fences and find JSON
+    const clean = text
+      .replace(/```json\n?/gi, '')
+      .replace(/```\n?/g, '')
+      .replace(/^[^{]*/s, '')  // remove any text before first {
+      .trim()
     const match = clean.match(/\{[\s\S]*\}/)
-    if (!match) return await knowledgeFallback(t, ANTHRO, res)
+    if (!match) {
+      // Try extracting from anywhere in the text
+      const anyJson = text.match(/\{[\s\S]*\}/)
+      if (!anyJson) return await knowledgeFallback(t, ANTHRO, res)
+      const data2 = JSON.parse(anyJson[0])
+      const filtered2 = Object.fromEntries(Object.entries(data2).filter(([,v]) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)))
+      return res.status(200).json({ ticker: t, ...filtered2, aiLoaded: true, updatedAt: new Date().toISOString() })
+    }
 
     const data = JSON.parse(match[0])
     const filtered = Object.fromEntries(

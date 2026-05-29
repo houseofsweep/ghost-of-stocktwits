@@ -141,7 +141,7 @@ export default function Home({ initialUser }) {
     const t = catalyst.ticker?.toUpperCase()
     if (!t) return
     // If we already have full data (with AI v2), don't reload
-    if (stockData[t]?.aiLoaded && stockData[t]?.aiV === 4) return
+    if (stockData[t]?.aiLoaded && stockData[t]?.aiV === 5) return
     // If FMP data already loaded and AI is loading, don't restart
     if (stockData[t]?.aiLoading) return
     setStockLoading(true)
@@ -153,12 +153,12 @@ export default function Home({ initialUser }) {
         setStockData(prev => ({ ...prev, [t]: { ...data, aiLoading: true } }))
         setStockLoading(false)
         // Then load AI data async (slow ~10-20s) without blocking panel
-        fetch(`/api/stockai?ticker=${t}&v=4`)
+        fetch(`/api/stockai?ticker=${t}&v=5`)
           .then(r => r.ok ? r.json() : null)
           .then(aiData => {
             console.log('AI data received:', JSON.stringify(aiData).slice(0,300))
             if (aiData && !aiData.noData) {
-              setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 4 } }))
+              setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 5 } }))
             } else {
               setStockData(prev => ({ ...prev, [t]: { ...prev[t], aiLoading: false, aiLoaded: true, aiDebug: aiData?.debug || aiData?.raw || 'noData' } }))
             }
