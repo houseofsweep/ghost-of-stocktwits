@@ -1,19 +1,75 @@
 export default async function handler(req, res) {
   const { ticker = 'OTLK' } = req.query
-  const FMP = process.env.FMP_API_KEY
+  const ANTHRO = process.env.ANTHROPIC_API_KEY
+  const results = {}
 
-  // Test SEC filings endpoint
-  const r1 = await fetch(`https://financialmodelingprep.com/stable/sec-filings?symbol=${ticker}&formType=8-K&limit=5&apikey=${FMP}`)
-  const d1 = await r1.json()
+  // Use Claude with web search to find SEC 8-K filings for this ticker
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHRO,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `Search SEC EDGAR for ${ticker} 8-K filings from 2025-2026. Find the most recent 8-K that mentions offering, warrant, placement, or financing. Return ONLY JSON:
+{
+  "lastRaiseAmount": null,
+  "lastRaiseType": null,
+  "lastRaiseDate": null,
+  "lastRaisePricePerShare": null,
+  "leadInvestors": null,
+  "warrantStrike": null,
+  "warrantExpiry": null,
+  "warrantShares": null,
+  "dilutionNote": null,
+  "secLink": null,
+  "keyCatalyst": null
+}`
+        }]
+      })
+    })
 
-  // Test EDGAR direct
-  const r2 = await fetch(`https://efts.sec.gov/LATEST/search-index?q=%22${ticker}%22&forms=8-K&dateRange=custom&startdt=2025-01-01&enddt=2026-12-31`, {
-    headers: { 'User-Agent': 'GhostOfStocktwits contact@ghost.com' }
-  })
-  const d2 = await r2.json()
+    const raw = await r.json()
+    let text = ''
+    for (const b of raw.content || []) {
+      if (b.type === 'text') text += b.text
+    }
 
-  res.status(200).json({
-    fmpFilings: { status: r1.status, data: d1 },
-    edgarFilings: { status: r2.status, count: d2?.hits?.total?.value, sample: d2?.hits?.hits?.slice(0,3).map(h => ({ id: h._id, date: h._source?.file_date, desc: h._source?.period_of_report, link: h._source?.file_num })) }
-  })
+    // If tool used, do follow up
+    if (!text && (raw.content||[]).some(b => b.type === 'tool_use')) {
+      const toolResults = (raw.content||[]).filter(b=>b.type==='tool_use').map(b=>({type:'tool_result',tool_use_id:b.id,content:'done'}))
+      const f2 = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHRO, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          messages: [
+            { role: 'user', content: `Search SEC EDGAR for ${ticker} 8-K filings mentioning offering, warrant, placement. Return ONLY JSON with: lastRaiseAmount, lastRaiseType, lastRaiseDate, lastRaisePricePerShare, leadInvestors, warrantStrike, warrantExpiry, warrantShares, dilutionNote, secLink, keyCatalyst` },
+            { role: 'assistant', content: raw.content },
+            { role: 'user', content: toolResults }
+          ]
+        })
+      })
+      const fd = await f2.json()
+      text = (fd.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
+    }
+
+    results.aiResponse = text.slice(0, 500)
+    if (text) {
+      const match = text.replace(/```json|```/g,'').match(/\{[\s\S]*\}/)
+      if (match) results.parsed = JSON.parse(match[0])
+    }
+  } catch(e) {
+    results.error = e.message
+  }
+
+  res.status(200).json(results)
 }
