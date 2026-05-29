@@ -139,16 +139,34 @@ export default function Home({ initialUser }) {
   const openCard = useCallback(async (catalyst) => {
     setSelectedCard(catalyst)
     const t = catalyst.ticker?.toUpperCase()
-    if (!t || stockData[t]) return
+    if (!t) return
+    // If we already have full data (with AI), don't reload
+    if (stockData[t]?.aiLoaded) return
     setStockLoading(true)
     try {
+      // Load FMP data first (fast ~1s)
       const res = await fetch(`/api/stock?ticker=${t}`)
       if (res.ok) {
         const data = await res.json()
-        setStockData(prev => ({ ...prev, [t]: data }))
+        setStockData(prev => ({ ...prev, [t]: { ...data, aiLoading: true } }))
+        setStockLoading(false)
+        // Then load AI data async (slow ~10-20s) without blocking panel
+        fetch(`/api/stockai?ticker=${t}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(aiData => {
+            if (aiData && !aiData.noData) {
+              setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true } }))
+            } else {
+              setStockData(prev => ({ ...prev, [t]: { ...prev[t], aiLoading: false, aiLoaded: true } }))
+            }
+          })
+          .catch(() => setStockData(prev => ({ ...prev, [t]: { ...prev[t], aiLoading: false, aiLoaded: true } })))
+      } else {
+        setStockLoading(false)
       }
-    } catch {}
-    setStockLoading(false)
+    } catch {
+      setStockLoading(false)
+    }
   }, [stockData])
 
   const saveStars = (stars) => {
@@ -1096,6 +1114,14 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
               ))}
             </div>
           )}
+
+        {/* AI loading indicator */}
+        {sd.aiLoading && (
+          <div style={{ padding:'12px 20px', display:'flex', alignItems:'center', gap:8, borderTop:'1px solid #21262d' }}>
+            <div style={{ width:12, height:12, border:'2px solid #21262d', borderTop:'2px solid #818cf8', borderRadius:'50%', animation:'spin 0.8s linear infinite', flexShrink:0 }} />
+            <span style={{ fontSize:11, color:'#6e7681' }}>Loading warrants, capital raise, short float...</span>
+          </div>
+        )}
 
         </div>
       ) : (

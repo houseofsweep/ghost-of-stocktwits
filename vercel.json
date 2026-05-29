@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "pages/api/stock.js": {
+      "maxDuration": 60
+    },
+    "pages/api/stockai.js": {
+      "maxDuration": 60
+    }
+  }
+}
