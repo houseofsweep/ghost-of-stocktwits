@@ -133,8 +133,38 @@ export default function Home({ initialUser }) {
         .then(data => { setCatalysts(data.catalysts || []); setMeta(data.meta || null) })
         .catch(console.error)
         .finally(() => setDataLoading(false))
+      // Pre-fetch AI data for default watchlist tickers silently in background
+      const defaultTickers = ['NUVB','IDYA','OTLK','RVMD','VSTM','ATAI','SPRB','AMRZ']
+      setTimeout(() => {
+        defaultTickers.forEach((t, i) => {
+          setTimeout(() => {
+            fetch(`/api/stockai?ticker=${t}&v=5`)
+              .then(r => r.ok ? r.json() : null)
+              .then(aiData => {
+                if (aiData && !aiData.noData) {
+                  setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 5 } }))
+                }
+              }).catch(() => {})
+          }, i * 3000) // stagger 3s apart to avoid rate limits
+        })
+      }, 2000) // start after 2s delay
     }
   }, [user?.isMember])
+
+  // Pre-fetch AI data on hover so it's ready when clicked
+  const prefetchCard = useCallback((catalyst) => {
+    const t = catalyst.ticker?.toUpperCase()
+    if (!t || stockData[t]?.aiLoaded || stockData[t]?.aiLoading) return
+    // Start AI fetch in background without showing panel
+    fetch(`/api/stockai?ticker=${t}&v=5`)
+      .then(r => r.ok ? r.json() : null)
+      .then(aiData => {
+        if (aiData && !aiData.noData) {
+          setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 5 } }))
+        }
+      })
+      .catch(() => {})
+  }, [stockData])
 
   const openCard = useCallback(async (catalyst) => {
     setSelectedCard(catalyst)
@@ -466,10 +496,10 @@ export default function Home({ initialUser }) {
                 {filtered.length === 0 && (
                   <div style={{ textAlign:'center', padding:'60px', color:'#6e7681', fontSize:15 }}>No catalysts found.</div>
                 )}
-                {todayCats.length > 0 && <DateSection label="🔥 Today" cards={todayCats} onToggleStar={toggleStar} onClickCard={openCard} selectedTicker={selectedCard?.ticker} />}
-                {weekCats.length > 0  && <DateSection label="📅 This Week" cards={weekCats} onToggleStar={toggleStar} onClickCard={openCard} selectedTicker={selectedCard?.ticker} />}
-                {monthCats.length > 0 && <DateSection label="📆 This Month" cards={monthCats} onToggleStar={toggleStar} onClickCard={openCard} selectedTicker={selectedCard?.ticker} />}
-                {laterCats.length > 0 && <DateSection label="🗓️ Later" cards={laterCats} onToggleStar={toggleStar} onClickCard={openCard} selectedTicker={selectedCard?.ticker} />}
+                {todayCats.length > 0 && <DateSection label="🔥 Today" cards={todayCats} onToggleStar={toggleStar} onClickCard={openCard} onHoverCard={prefetchCard} selectedTicker={selectedCard?.ticker} />}
+                {weekCats.length > 0  && <DateSection label="📅 This Week" cards={weekCats} onToggleStar={toggleStar} onClickCard={openCard} onHoverCard={prefetchCard} selectedTicker={selectedCard?.ticker} />}
+                {monthCats.length > 0 && <DateSection label="📆 This Month" cards={monthCats} onToggleStar={toggleStar} onClickCard={openCard} onHoverCard={prefetchCard} selectedTicker={selectedCard?.ticker} />}
+                {laterCats.length > 0 && <DateSection label="🗓️ Later" cards={laterCats} onToggleStar={toggleStar} onClickCard={openCard} onHoverCard={prefetchCard} selectedTicker={selectedCard?.ticker} />}
               </div>
             )}
 
@@ -517,7 +547,7 @@ export default function Home({ initialUser }) {
 }
 
 // ── DATE SECTION ──────────────────────────────────────────────────────────────
-function DateSection({ label, cards, onToggleStar, onClickCard, selectedTicker }) {
+function DateSection({ label, cards, onToggleStar, onClickCard, onHoverCard, selectedTicker }) {
   return (
     <div style={{ marginBottom: 28 }}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', marginBottom: 10, display:'flex', alignItems:'center', gap:8 }}>
@@ -527,7 +557,7 @@ function DateSection({ label, cards, onToggleStar, onClickCard, selectedTicker }
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
         {cards.map((c, i) => (
           <CatalystCard key={`${c.ticker}_${c.date}_${i}`} c={c} onToggleStar={onToggleStar} onClickCard={onClickCard}
-            isSelected={selectedTicker === c.ticker} />
+            onHoverCard={onHoverCard} isSelected={selectedTicker === c.ticker} />
         ))}
       </div>
     </div>
@@ -535,7 +565,7 @@ function DateSection({ label, cards, onToggleStar, onClickCard, selectedTicker }
 }
 
 // ── CATALYST CARD ─────────────────────────────────────────────────────────────
-function CatalystCard({ c, onToggleStar, onClickCard, isSelected }) {
+function CatalystCard({ c, onToggleStar, onClickCard, onHoverCard, isSelected }) {
   const typeDef = EVENT_TYPES[c.inferredType] || { label: c.inferredType||'Readout', color:'#6e7681', bg:'rgba(110,118,129,0.15)', icon:'📊' }
   const urgColor = c.daysOut===0 ? '#ef4444' : c.daysOut<=7 ? '#f59e0b' : '#6e7681'
   const daysLabel = c.daysOut===0 ? 'Today' : c.daysOut===1 ? '1d' : `${c.daysOut}d`
@@ -544,7 +574,7 @@ function CatalystCard({ c, onToggleStar, onClickCard, isSelected }) {
   const secLink = c.secUrl || null
 
   return (
-    <div data-catalyst-card="true" className="cat-card" onClick={() => onClickCard(c)}
+    <div data-catalyst-card="true" className="cat-card" onClick={() => onClickCard(c)} onMouseEnter={() => onHoverCard && onHoverCard(c)}
       style={{
         background: isSelected ? 'rgba(99,102,241,0.08)' : 'rgba(22,27,34,0.8)',
         border: isSelected ? '1px solid rgba(99,102,241,0.5)' : '1px solid #21262d',
