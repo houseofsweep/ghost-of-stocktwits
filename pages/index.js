@@ -2,29 +2,40 @@ import { useState, useEffect, useMemo } from 'react'
 import Head from 'next/head'
 import { getSession } from '../lib/session'
 
-const WATCHLIST = ['NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ']
-const DISCORD_INVITE = 'https://discord.gg/YOUR_INVITE_LINK' // replace with your invite
+const DEFAULT_WATCHLIST = ['NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ']
+const DISCORD_INVITE = 'https://discord.gg/YOUR_INVITE_LINK'
 
-// ─── Server-side: load session ────────────────────────────────────────────────
 export async function getServerSideProps({ req, res }) {
   const session = await getSession(req, res)
   return { props: { initialUser: session.user || null } }
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home({ initialUser }) {
-  const [user, setUser]           = useState(initialUser)
-  const [catalysts, setCatalysts] = useState([])
-  const [loading, setLoading]     = useState(false)
+  const [user, setUser]             = useState(initialUser)
+  const [catalysts, setCatalysts]   = useState([])
   const [dataLoading, setDataLoading] = useState(false)
-  const [search, setSearch]       = useState('')
-  const [timeFilter, setTimeFilter] = useState('all')
+  const [search, setSearch]         = useState('')
+  const [timeFilter, setTimeFilter] = useState('upcoming')
   const [typeFilter, setTypeFilter] = useState('all')
-  const [sortBy, setSortBy]       = useState('date')
-  const [sortDir, setSortDir]     = useState('asc')
-  const [meta, setMeta]           = useState(null)
+  const [sortBy, setSortBy]         = useState('date')
+  const [sortDir, setSortDir]       = useState('asc')
+  const [meta, setMeta]             = useState(null)
+  const [showPast, setShowPast]     = useState(false)
+  const [myStars, setMyStars]       = useState([])
+  const [starFilter, setStarFilter] = useState(false)
+  const [addingTicker, setAddingTicker] = useState(false)
+  const [newTicker, setNewTicker]   = useState('')
 
-  // Load catalyst data for members
+  // Load personal stars from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ghost_my_stars')
+      if (saved) setMyStars(JSON.parse(saved))
+      else setMyStars(DEFAULT_WATCHLIST)
+    } catch { setMyStars(DEFAULT_WATCHLIST) }
+  }, [])
+
+  // Load catalyst data
   useEffect(() => {
     if (user?.isMember) {
       setDataLoading(true)
@@ -39,9 +50,45 @@ export default function Home({ initialUser }) {
     }
   }, [user?.isMember])
 
-  // Filtered & sorted catalysts
+  // Save stars to localStorage
+  const saveStars = (stars) => {
+    setMyStars(stars)
+    try { localStorage.setItem('ghost_my_stars', JSON.stringify(stars)) } catch {}
+  }
+
+  const toggleStar = (ticker) => {
+    const t = ticker.toUpperCase()
+    const updated = myStars.includes(t)
+      ? myStars.filter(s => s !== t)
+      : [...myStars, t]
+    saveStars(updated)
+  }
+
+  const addTicker = () => {
+    const t = newTicker.trim().toUpperCase()
+    if (t && !myStars.includes(t)) saveStars([...myStars, t])
+    setNewTicker('')
+    setAddingTicker(false)
+  }
+
+  // Enrich catalysts with personal star data
+  const enriched = useMemo(() => catalysts.map(c => ({
+    ...c,
+    isMystar: myStars.includes((c.ticker || '').toUpperCase()),
+  })), [catalysts, myStars])
+
+  // Filtered & sorted
   const filtered = useMemo(() => {
-    let list = [...catalysts]
+    let list = [...enriched]
+
+    // Past vs upcoming toggle
+    if (showPast) {
+      list = list.filter(c => c.daysOut < 0)
+      list.sort((a, b) => new Date(b.date) - new Date(a.date)) // newest past first
+      return list
+    } else {
+      list = list.filter(c => c.daysOut >= 0)
+    }
 
     if (search) {
       const q = search.toLowerCase()
@@ -49,194 +96,190 @@ export default function Home({ initialUser }) {
         c.ticker?.toLowerCase().includes(q) ||
         c.drug?.toLowerCase().includes(q) ||
         c.company?.toLowerCase().includes(q) ||
-        c.condition?.toLowerCase().includes(q)
+        c.condition?.toLowerCase().includes(q) ||
+        c.catalyst?.toLowerCase().includes(q)
       )
     }
 
     if (timeFilter === 'week')  list = list.filter(c => c.daysOut <= 7)
     if (timeFilter === 'month') list = list.filter(c => c.daysOut <= 30)
     if (timeFilter === '90')    list = list.filter(c => c.daysOut <= 90)
-
-    if (typeFilter !== 'all') list = list.filter(c => c.type === typeFilter)
+    if (typeFilter !== 'all')   list = list.filter(c => c.type === typeFilter)
+    if (starFilter)             list = list.filter(c => c.isMystar)
 
     list.sort((a, b) => {
-      let valA = a[sortBy], valB = b[sortBy]
-      if (sortBy === 'date') {
-        valA = new Date(valA); valB = new Date(valB)
-      } else {
-        valA = (valA || '').toString().toLowerCase()
-        valB = (valB || '').toString().toLowerCase()
-      }
+      let valA = sortBy === 'date' ? new Date(a.date) : (a[sortBy] || '')
+      let valB = sortBy === 'date' ? new Date(b.date) : (b[sortBy] || '')
       if (valA < valB) return sortDir === 'asc' ? -1 : 1
       if (valA > valB) return sortDir === 'asc' ? 1 : -1
       return 0
     })
 
     return list
-  }, [catalysts, search, timeFilter, typeFilter, sortBy, sortDir])
+  }, [enriched, search, timeFilter, typeFilter, sortBy, sortDir, showPast, starFilter])
 
   const toggleSort = (col) => {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortBy(col); setSortDir('asc') }
   }
 
-  if (!user)           return <LandingPage />
-  if (!user.isMember)  return <NotMemberPage user={user} invite={DISCORD_INVITE} />
+  if (!user)          return <LandingPage invite={DISCORD_INVITE} />
+  if (!user.isMember) return <NotMemberPage user={user} invite={DISCORD_INVITE} />
+
+  const upcoming  = enriched.filter(c => c.daysOut >= 0)
+  const past      = enriched.filter(c => c.daysOut < 0)
+  const myStarHits = upcoming.filter(c => c.isMystar)
 
   return (
     <>
       <Head>
         <title>Ghost of Stocktwits — Biotech Catalyst Calendar</title>
         <meta name="description" content="The most comprehensive biotech catalyst calendar for serious traders." />
-        <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div style={styles.app}>
+      <div style={s.app}>
         {/* Header */}
-        <header style={styles.header}>
-          <div style={styles.headerInner}>
-            <div style={styles.brand}>
-              <span style={styles.ghostIcon}>👻</span>
+        <header style={s.header}>
+          <div style={s.headerInner}>
+            <div style={s.brand}>
+              <span style={{fontSize:32}}>👻</span>
               <div>
-                <div style={styles.brandName}>Ghost of Stocktwits</div>
-                <div style={styles.brandSub}>Biotech Catalyst Calendar</div>
+                <div style={s.brandName}>Ghost of Stocktwits</div>
+                <div style={s.brandSub}>Biotech Catalyst Calendar</div>
               </div>
             </div>
-            <div style={styles.headerRight}>
-              {meta && (
-                <div style={styles.updateBadge}>
-                  Updated {new Date(meta.updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              )}
-              <div style={styles.userInfo}>
-                <img src={user.avatar} alt={user.username} style={styles.avatar} />
-                <span style={styles.username}>{user.username}</span>
+            <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+              {meta && <div style={s.updateBadge}>Updated {new Date(meta.updated).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>}
+              <div style={s.userInfo}>
+                <img src={user.avatar} alt={user.username} style={s.avatar} />
+                <span style={s.username}>{user.username}</span>
               </div>
-              <a href="/api/auth/logout" style={styles.logoutBtn}>Logout</a>
+              <a href="/api/auth/logout" style={s.logoutBtn}>Logout</a>
             </div>
           </div>
         </header>
 
-        <main style={styles.main}>
-          {/* Stats row */}
-          <div style={styles.statsRow}>
+        <main style={s.main}>
+          {/* Stats */}
+          <div style={s.statsRow}>
             {[
-              { label: '🔴 This Week',   count: catalysts.filter(c => c.daysOut <= 7).length,  color: '#ef4444' },
-              { label: '🟡 This Month',  count: catalysts.filter(c => c.daysOut <= 30).length, color: '#eab308' },
-              { label: '🟢 Next 90 Days',count: catalysts.filter(c => c.daysOut <= 90).length, color: '#22c55e' },
-              { label: '⭐ Watchlist',   count: catalysts.filter(c => c.isWatchlist).length,   color: '#f59e0b' },
-              { label: '📋 Total',       count: catalysts.length,                               color: '#6366f1' },
-            ].map(s => (
-              <div key={s.label} style={styles.statCard}>
-                <div style={{ ...styles.statCount, color: s.color }}>{s.count}</div>
-                <div style={styles.statLabel}>{s.label}</div>
+              {label:'🔴 This Week',  count: upcoming.filter(c=>c.daysOut<=7).length,  color:'#ef4444'},
+              {label:'🟡 This Month', count: upcoming.filter(c=>c.daysOut<=30).length, color:'#eab308'},
+              {label:'🟢 90 Days',    count: upcoming.filter(c=>c.daysOut<=90).length, color:'#22c55e'},
+              {label:'⭐ My Stars',   count: myStarHits.length,                        color:'#f59e0b'},
+              {label:'📋 Total',      count: upcoming.length,                          color:'#6366f1'},
+              {label:'📁 Past',       count: past.length,                              color:'#6e7681'},
+            ].map(stat => (
+              <div
+                key={stat.label}
+                style={{...s.statCard, cursor: stat.label === '📁 Past' ? 'pointer' : 'default', border: showPast && stat.label === '📁 Past' ? '1px solid #6366f1' : '1px solid #21262d'}}
+                onClick={stat.label === '📁 Past' ? () => setShowPast(p => !p) : undefined}
+              >
+                <div style={{...s.statCount, color: stat.color}}>{stat.count}</div>
+                <div style={s.statLabel}>{stat.label}</div>
               </div>
             ))}
           </div>
 
-          {/* Filters */}
-          <div style={styles.filtersRow}>
-            <input
-              type="text"
-              placeholder="🔍  Search ticker, drug, company..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={styles.searchInput}
-            />
-            <div style={styles.filterGroup}>
-              {[
-                { val: 'all',   label: 'All Time' },
-                { val: 'week',  label: 'This Week' },
-                { val: 'month', label: 'This Month' },
-                { val: '90',    label: '90 Days' },
-              ].map(f => (
-                <button
-                  key={f.val}
-                  onClick={() => setTimeFilter(f.val)}
-                  style={timeFilter === f.val ? styles.filterBtnActive : styles.filterBtn}
-                >{f.label}</button>
+          {/* My Stars Manager */}
+          <div style={s.starsBar}>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <span style={{fontSize:13,color:'#8b949e',fontWeight:600}}>⭐ My Stars:</span>
+              {myStars.map(t => (
+                <span key={t} style={s.starChip}>
+                  {t}
+                  <button onClick={() => toggleStar(t)} style={s.chipRemove} title="Remove">×</button>
+                </span>
               ))}
-            </div>
-            <div style={styles.filterGroup}>
-              {[
-                { val: 'all',          label: 'All Types' },
-                { val: 'PDUFA',        label: 'PDUFA' },
-                { val: 'Trial Readout',label: 'Trial Readouts' },
-              ].map(f => (
-                <button
-                  key={f.val}
-                  onClick={() => setTypeFilter(f.val)}
-                  style={typeFilter === f.val ? styles.filterBtnActive : styles.filterBtn}
-                >{f.label}</button>
-              ))}
+              {addingTicker ? (
+                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                  <input
+                    autoFocus
+                    value={newTicker}
+                    onChange={e => setNewTicker(e.target.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter') addTicker(); if (e.key === 'Escape') setAddingTicker(false) }}
+                    placeholder="TICKER"
+                    style={s.tickerInput}
+                    maxLength={8}
+                  />
+                  <button onClick={addTicker} style={s.addBtn}>Add</button>
+                  <button onClick={() => setAddingTicker(false)} style={s.cancelBtn}>Cancel</button>
+                </div>
+              ) : (
+                <button onClick={() => setAddingTicker(true)} style={s.addStarBtn}>+ Add Ticker</button>
+              )}
             </div>
           </div>
 
-          {/* Results count */}
-          <div style={styles.resultsLine}>
-            {dataLoading
-              ? '⏳ Loading catalyst data...'
-              : `Showing ${filtered.length} of ${catalysts.length} catalysts`
-            }
+          {/* Past Banner */}
+          {showPast && (
+            <div style={s.pastBanner}>
+              📁 Showing past catalysts — <button onClick={() => setShowPast(false)} style={s.backBtn}>← Back to Upcoming</button>
+            </div>
+          )}
+
+          {/* Filters */}
+          {!showPast && (
+            <div style={s.filtersRow}>
+              <input
+                type="text"
+                placeholder="🔍  Search ticker, drug, condition..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={s.searchInput}
+              />
+              <div style={s.filterGroup}>
+                {[{v:'upcoming',l:'Upcoming'},{v:'week',l:'This Week'},{v:'month',l:'This Month'},{v:'90',l:'90 Days'}].map(f => (
+                  <button key={f.v} onClick={() => setTimeFilter(f.v)} style={timeFilter===f.v ? s.filterBtnActive : s.filterBtn}>{f.l}</button>
+                ))}
+              </div>
+              <div style={s.filterGroup}>
+                {[{v:'all',l:'All Types'},{v:'pdufa',l:'PDUFA'},{v:'phase3',l:'Phase 3'},{v:'phase2',l:'Phase 2'},{v:'conference',l:'Conference'}].map(f => (
+                  <button key={f.v} onClick={() => setTypeFilter(f.v)} style={typeFilter===f.v ? s.filterBtnActive : s.filterBtn}>{f.l}</button>
+                ))}
+              </div>
+              <button
+                onClick={() => setStarFilter(p => !p)}
+                style={starFilter ? {...s.filterBtnActive, background:'rgba(245,158,11,0.2)', borderColor:'#f59e0b', color:'#f59e0b'} : s.filterBtn}
+              >⭐ My Stars Only</button>
+            </div>
+          )}
+
+          <div style={s.resultsLine}>
+            {dataLoading ? '⏳ Loading 500+ catalysts...' : `Showing ${filtered.length} ${showPast ? 'past' : 'upcoming'} catalysts`}
           </div>
 
           {/* Table */}
           {dataLoading ? (
-            <div style={styles.loadingBox}>
-              <div style={styles.spinner} />
-              <div style={{ color: '#8b949e', marginTop: 16 }}>Fetching catalyst data from ClinicalTrials.gov & BioPharma Catalyst...</div>
+            <div style={s.loadingBox}>
+              <div style={s.spinner} />
+              <div style={{color:'#8b949e',marginTop:16}}>Loading catalyst data...</div>
             </div>
           ) : (
-            <div style={styles.tableWrap}>
-              <table style={styles.table}>
+            <div style={s.tableWrap}>
+              <table style={s.table}>
                 <thead>
                   <tr>
-                    {[
-                      { col: null,     label: '' },
-                      { col: 'date',   label: 'Date' },
-                      { col: 'daysOut',label: 'Days' },
-                      { col: 'ticker', label: 'Ticker' },
-                      { col: 'drug',   label: 'Drug / Asset' },
-                      { col: 'catalyst', label: 'Catalyst' },
-                      { col: 'type',   label: 'Type' },
-                      { col: 'source', label: 'Source' },
-                    ].map(({ col, label }) => (
-                      <th
-                        key={label}
-                        onClick={col ? () => toggleSort(col) : undefined}
-                        style={{ ...styles.th, cursor: col ? 'pointer' : 'default' }}
-                      >
-                        {label}
-                        {sortBy === col && (sortDir === 'asc' ? ' ↑' : ' ↓')}
-                      </th>
+                    <th style={s.th}></th>
+                    {[['date','Date'],['daysOut','Days'],['ticker','Ticker'],['drug','Drug / Asset'],['catalyst','Catalyst'],['type','Type'],['condition','Condition'],['source','Source']].map(([col, label]) => (
+                      <th key={col} onClick={() => toggleSort(col)} style={{...s.th, cursor:'pointer'}}>{label}{sortBy===col?(sortDir==='asc'?' ↑':' ↓'):''}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '48px', color: '#8b949e' }}>
-                        No catalysts found for your current filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filtered.map((c, i) => (
-                      <CatalystRow key={`${c.ticker}_${c.date}_${i}`} c={c} />
-                    ))
-                  )}
+                    <tr><td colSpan={9} style={{textAlign:'center',padding:'48px',color:'#8b949e'}}>No catalysts found.</td></tr>
+                  ) : filtered.map((c, i) => (
+                    <CatalystRow key={`${c.ticker}_${c.date}_${i}`} c={c} onToggleStar={toggleStar} isStarred={c.isMystar} isPast={showPast} />
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* Footer */}
-          <div style={styles.footer}>
-            <div>
-              Data sources: ClinicalTrials.gov (official API) • BioPharma Catalyst • SEC EDGAR
-            </div>
-            <div style={{ marginTop: 4, color: '#6e7681' }}>
-              ⭐ Gold rows = your Ghost of Stocktwits watchlist picks
-            </div>
+          <div style={s.footer}>
+            Data: CatalystAlert.io • Ghost Curated PDUFA Dates • ClinicalTrials.gov<br/>
+            <span style={{color:'#6e7681'}}>⭐ = Your personal starred tickers &nbsp;|&nbsp; Click ⭐ on any row to star/unstar &nbsp;|&nbsp; Click 📁 Past to see previous catalysts</span>
           </div>
         </main>
       </div>
@@ -244,169 +287,81 @@ export default function Home({ initialUser }) {
   )
 }
 
-// ─── Catalyst Table Row ───────────────────────────────────────────────────────
-function CatalystRow({ c }) {
-  const urgencyColor = c.urgency === 'high' ? '#ef4444' : c.urgency === 'medium' ? '#eab308' : '#22c55e'
-  const rowStyle = {
-    ...styles.tr,
-    background: c.isWatchlist
-      ? 'rgba(245, 158, 11, 0.08)'
-      : 'transparent',
-    borderLeft: c.isWatchlist ? '3px solid #f59e0b' : '3px solid transparent',
-  }
-
-  const dateStr = c.date
-    ? new Date(c.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—'
-
-  const nctLink = c.nctId
-    ? `https://clinicaltrials.gov/study/${c.nctId}`
-    : null
+// ─── Catalyst Row ─────────────────────────────────────────────────────────────
+function CatalystRow({ c, onToggleStar, isStarred, isPast }) {
+  const urgColor = isPast ? '#6e7681' : c.urgency==='high' ? '#ef4444' : c.urgency==='medium' ? '#eab308' : '#22c55e'
+  const daysLabel = isPast
+    ? `${Math.abs(c.daysOut)}d ago`
+    : c.daysOut===0 ? 'TODAY' : c.daysOut===1 ? '1d' : `${c.daysOut}d`
+  const dateStr = new Date(c.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+  const typeBg = c.type==='pdufa' ? 'rgba(99,102,241,0.2)' : c.type==='phase3' ? 'rgba(239,68,68,0.15)' : c.type==='conference' ? 'rgba(96,165,250,0.15)' : 'rgba(34,197,94,0.15)'
+  const typeColor = c.type==='pdufa' ? '#818cf8' : c.type==='phase3' ? '#f87171' : c.type==='conference' ? '#60a5fa' : '#4ade80'
+  const tickerColor = isStarred ? '#f59e0b' : '#58a6ff'
+  const nctLink = c.nctId ? `https://clinicaltrials.gov/study/${c.nctId}` : null
+  const rowBg = isStarred ? 'rgba(245,158,11,0.06)' : 'transparent'
 
   return (
-    <tr style={rowStyle}>
-      <td style={styles.td}>
-        <span style={{ ...styles.urgencyDot, background: urgencyColor }} title={`${c.daysOut} days out`} />
-        {c.isWatchlist && <span style={styles.watchlistStar} title="On your watchlist">⭐</span>}
+    <tr style={{borderBottom:'1px solid #21262d', background:rowBg, borderLeft: isStarred ? '3px solid #f59e0b' : '3px solid transparent'}}>
+      <td style={{...s.td, padding:'8px 10px'}}>
+        <button
+          onClick={() => onToggleStar(c.ticker)}
+          style={{background:'none',border:'none',cursor:'pointer',fontSize:14,opacity: isStarred ? 1 : 0.3, transition:'opacity 0.2s'}}
+          title={isStarred ? 'Remove from My Stars' : 'Add to My Stars'}
+        >⭐</button>
       </td>
-      <td style={{ ...styles.td, whiteSpace: 'nowrap', fontWeight: 500 }}>{dateStr}</td>
-      <td style={{ ...styles.td, color: urgencyColor, fontWeight: 700 }}>
-        {c.daysOut === 0 ? 'TODAY' : c.daysOut === 1 ? '1d' : `${c.daysOut}d`}
-      </td>
-      <td style={{ ...styles.td, fontWeight: 700, color: c.isWatchlist ? '#f59e0b' : '#58a6ff' }}>
+      <td style={{...s.td, fontWeight:500, whiteSpace:'nowrap', color: isPast ? '#6e7681' : '#f0f6fc'}}>{dateStr}</td>
+      <td style={{...s.td, color:urgColor, fontWeight:700, whiteSpace:'nowrap'}}>{daysLabel}</td>
+      <td style={{...s.td, fontWeight:700}}>
         {nctLink
-          ? <a href={nctLink} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{c.ticker}</a>
-          : c.ticker
+          ? <a href={nctLink} target="_blank" rel="noreferrer" style={{color:tickerColor, textDecoration:'none'}}>{c.ticker}</a>
+          : <span style={{color:tickerColor}}>{c.ticker}</span>
         }
       </td>
-      <td style={{ ...styles.td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        title={c.drug}>
-        {c.drug || '—'}
+      <td style={{...s.td, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={c.drug}>{c.drug || '—'}</td>
+      <td style={{...s.td, color:'#8b949e', fontSize:13, maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={c.catalyst}>{c.catalyst || '—'}</td>
+      <td style={s.td}>
+        <span style={{...s.typeBadge, background:typeBg, color:typeColor}}>{c.type==='pdufa'?'PDUFA':c.type==='phase3'?'Phase 3':c.type==='conference'?'Conference':'Phase 2'}</span>
       </td>
-      <td style={{ ...styles.td, color: '#8b949e', fontSize: 13 }}>{c.catalyst || '—'}</td>
-      <td style={styles.td}>
-        <span style={{
-          ...styles.typeBadge,
-          background: c.type === 'PDUFA' ? 'rgba(99,102,241,0.2)' : 'rgba(34,197,94,0.15)',
-          color: c.type === 'PDUFA' ? '#818cf8' : '#4ade80',
-        }}>
-          {c.type || '—'}
-        </span>
-      </td>
-      <td style={{ ...styles.td, color: '#6e7681', fontSize: 12 }}>{c.source || '—'}</td>
+      <td style={{...s.td, color:'#6e7681', fontSize:12, maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={c.condition}>{c.condition || '—'}</td>
+      <td style={{...s.td, color:'#6e7681', fontSize:11, whiteSpace:'nowrap'}}>{c.source || '—'}</td>
     </tr>
   )
 }
 
-// ─── Landing Page (not logged in) ────────────────────────────────────────────
-function LandingPage() {
-  // Sample blurred preview data
-  const sampleRows = [
-    { ticker: 'XXXX', drug: '████████', catalyst: 'PDUFA — FDA Action', daysOut: 3,  urgency: 'high' },
-    { ticker: 'XXXX', drug: '██████',   catalyst: 'Phase 3 Readout',    daysOut: 8,  urgency: 'medium' },
-    { ticker: 'XXXX', drug: '█████████',catalyst: 'PDUFA — NDA',        daysOut: 12, urgency: 'medium' },
-    { ticker: 'XXXX', drug: '████████', catalyst: 'Phase 2/3 Results',  daysOut: 21, urgency: 'medium' },
-    { ticker: 'XXXX', drug: '██████',   catalyst: 'ADCOM Meeting',      daysOut: 28, urgency: 'medium' },
-    { ticker: 'XXXX', drug: '████████', catalyst: 'Phase 3 Readout',    daysOut: 35, urgency: 'low' },
-    { ticker: 'XXXX', drug: '███████',  catalyst: 'PDUFA — BLA',        daysOut: 44, urgency: 'low' },
-  ]
-
+// ─── Landing Page ─────────────────────────────────────────────────────────────
+function LandingPage({ invite }) {
   return (
     <>
-      <Head>
-        <title>Ghost of Stocktwits — Biotech Catalyst Calendar</title>
-        <meta name="description" content="The most comprehensive biotech catalyst calendar. PDUFA dates, clinical trial readouts, FDA decisions — all in one place." />
-      </Head>
-      <div style={styles.landing}>
-        {/* Hero */}
-        <div style={styles.hero}>
-          <div style={styles.heroGhost}>👻</div>
-          <h1 style={styles.heroTitle}>Ghost of Stocktwits</h1>
-          <p style={styles.heroSub}>The most comprehensive biotech catalyst calendar for serious traders.</p>
-          <p style={styles.heroDesc}>
-            PDUFA dates · Clinical trial readouts · FDA decisions · ADCOM meetings<br />
-            All in one place. Updated daily. Members only.
-          </p>
-          <a href="/api/auth/login" style={styles.loginBtn}>
-            <svg width="20" height="20" viewBox="0 0 71 55" fill="#fff" style={{ marginRight: 10, flexShrink: 0 }}>
+      <Head><title>Ghost of Stocktwits — Biotech Catalyst Calendar</title></Head>
+      <div style={s.landing}>
+        <div style={s.hero}>
+          <span style={{fontSize:72}}>👻</span>
+          <h1 style={s.heroTitle}>Ghost of Stocktwits</h1>
+          <p style={s.heroSub}>The most comprehensive biotech catalyst calendar for serious traders.</p>
+          <p style={s.heroDesc}>500+ PDUFA dates · Phase 3 readouts · FDA decisions · ADCOM meetings<br/>All in one place. Personal starred tickers. Past & upcoming. Members only.</p>
+          <a href="/api/auth/login" style={s.loginBtn}>
+            <svg width="20" height="20" viewBox="0 0 71 55" fill="#fff" style={{marginRight:10}}>
               <path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.7a40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.3 0A39.5 39.5 0 0 0 25.6.7 58.4 58.4 0 0 0 11 4.9C1.6 19.2-.9 33 .3 46.6a59.1 59.1 0 0 0 18 9.1 44.5 44.5 0 0 0 3.8-6.2 38.3 38.3 0 0 1-6-2.9l1.5-1.1a42.1 42.1 0 0 0 36.1 0l1.5 1.1a38.3 38.3 0 0 1-6 2.9 44.1 44.1 0 0 0 3.8 6.2 58.9 58.9 0 0 0 18-9 54 54 0 0 0-9.9-41.7zM23.7 38.2c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.5 0 6.4 3.2 6.4 7.2s-2.9 7.2-6.4 7.2zm23.7 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.5 0 6.4 3.2 6.4 7.2s-2.9 7.2-6.4 7.2z"/>
             </svg>
             Login with Discord
           </a>
-          <p style={styles.heroSmall}>Members of Ghost of Stocktwits get full access. Not a member?{' '}
-            <a href={DISCORD_INVITE} target="_blank" rel="noreferrer" style={{ color: '#58a6ff' }}>Join here →</a>
-          </p>
+          <p style={{marginTop:16,fontSize:13,color:'#6e7681'}}>Members only. Not a member? <a href={invite} target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Join here →</a></p>
         </div>
-
-        {/* Blurred preview */}
-        <div style={styles.previewWrap}>
-          <div style={styles.previewLabel}>
-            <span style={{ color: '#f59e0b' }}>⭐</span> Preview — Full calendar unlocked for members
-          </div>
-          <div style={styles.blurOverlay}>
-            <div style={styles.blurCTA}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Members Only</div>
-              <div style={{ color: '#8b949e', marginBottom: 20, fontSize: 14 }}>Login with Discord to unlock the full calendar</div>
-              <a href="/api/auth/login" style={{ ...styles.loginBtn, fontSize: 14, padding: '10px 24px' }}>
-                Unlock Full Calendar
-              </a>
-            </div>
-          </div>
-          <table style={{ ...styles.table, filter: 'blur(4px)', userSelect: 'none', pointerEvents: 'none' }}>
-            <thead>
-              <tr>
-                <th style={styles.th}></th>
-                <th style={styles.th}>Date</th>
-                <th style={styles.th}>Days</th>
-                <th style={styles.th}>Ticker</th>
-                <th style={styles.th}>Drug / Asset</th>
-                <th style={styles.th}>Catalyst</th>
-                <th style={styles.th}>Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sampleRows.map((r, i) => {
-                const urgencyColor = r.urgency === 'high' ? '#ef4444' : r.urgency === 'medium' ? '#eab308' : '#22c55e'
-                return (
-                  <tr key={i} style={styles.tr}>
-                    <td style={styles.td}><span style={{ ...styles.urgencyDot, background: urgencyColor }} /></td>
-                    <td style={{ ...styles.td, fontWeight: 500 }}>Jun {10 + i * 5}, 2026</td>
-                    <td style={{ ...styles.td, color: urgencyColor, fontWeight: 700 }}>{r.daysOut}d</td>
-                    <td style={{ ...styles.td, fontWeight: 700, color: '#58a6ff' }}>{r.ticker}</td>
-                    <td style={styles.td}>{r.drug}</td>
-                    <td style={{ ...styles.td, color: '#8b949e' }}>{r.catalyst}</td>
-                    <td style={styles.td}>
-                      <span style={{ ...styles.typeBadge, background: 'rgba(99,102,241,0.2)', color: '#818cf8' }}>
-                        {i % 2 === 0 ? 'PDUFA' : 'Trial Readout'}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Features */}
-        <div style={styles.featuresRow}>
+        <div style={s.featuresRow}>
           {[
-            { icon: '📅', title: 'PDUFA Dates', desc: 'Every FDA action date tracked. Know before the decision.' },
-            { icon: '🔬', title: 'Trial Readouts', desc: 'Phase 2/3 primary completion dates from ClinicalTrials.gov.' },
-            { icon: '⚡', title: 'Real-Time Alerts', desc: 'Discord alerts the moment new catalysts are detected.' },
-            { icon: '⭐', title: 'Watchlist Highlights', desc: 'Your key tickers always highlighted at the top.' },
+            {icon:'📅',title:'500+ Catalysts',desc:'PDUFA dates, Phase 2/3 readouts, conferences — the most complete calendar available.'},
+            {icon:'⭐',title:'Personal Stars',desc:'Star your own tickers. Your watchlist saves automatically and filters the calendar.'},
+            {icon:'📁',title:'Past Catalysts',desc:'Never miss context. Browse all historical catalysts with one click.'},
+            {icon:'🔒',title:'Members Only',desc:'Exclusive to Ghost of Stocktwits Discord members. Login with Discord instantly.'},
           ].map(f => (
-            <div key={f.title} style={styles.featureCard}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>{f.icon}</div>
-              <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 16 }}>{f.title}</div>
-              <div style={{ color: '#8b949e', fontSize: 14, lineHeight: 1.5 }}>{f.desc}</div>
+            <div key={f.title} style={s.featureCard}>
+              <div style={{fontSize:32,marginBottom:12}}>{f.icon}</div>
+              <div style={{fontWeight:700,marginBottom:6,fontSize:16}}>{f.title}</div>
+              <div style={{color:'#8b949e',fontSize:14,lineHeight:1.5}}>{f.desc}</div>
             </div>
           ))}
         </div>
-
-        <div style={styles.landingFooter}>
-          © 2026 Ghost of Stocktwits · <a href={DISCORD_INVITE} style={{ color: '#58a6ff' }}>Join Discord</a>
-        </div>
+        <div style={{fontSize:13,color:'#6e7681'}}>© 2026 Ghost of Stocktwits · <a href={invite} style={{color:'#58a6ff'}}>Join Discord</a></div>
       </div>
     </>
   )
@@ -417,23 +372,13 @@ function NotMemberPage({ user, invite }) {
   return (
     <>
       <Head><title>Ghost of Stocktwits — Join to Access</title></Head>
-      <div style={{ ...styles.landing, justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center', maxWidth: 480, padding: 40 }}>
-          <div style={{ fontSize: 64, marginBottom: 16 }}>👻</div>
-          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>You're not in the server yet</h2>
-          <p style={{ color: '#8b949e', marginBottom: 8 }}>
-            Hey <strong style={{ color: '#f0f6fc' }}>{user.username}</strong> — you're logged in with Discord but
-            you haven't joined the Ghost of Stocktwits server yet.
-          </p>
-          <p style={{ color: '#8b949e', marginBottom: 32 }}>
-            Join the server to unlock the full biotech catalyst calendar and all member features.
-          </p>
-          <a href={invite} target="_blank" rel="noreferrer" style={styles.loginBtn}>
-            Join Ghost of Stocktwits →
-          </a>
-          <div style={{ marginTop: 20 }}>
-            <a href="/api/auth/logout" style={{ color: '#6e7681', fontSize: 13 }}>← Logout and use a different account</a>
-          </div>
+      <div style={{...s.landing,justifyContent:'center',alignItems:'center',minHeight:'100vh'}}>
+        <div style={{textAlign:'center',maxWidth:480,padding:40}}>
+          <div style={{fontSize:64,marginBottom:16}}>👻</div>
+          <h2 style={{fontSize:28,fontWeight:800,marginBottom:12}}>You're not in the server yet</h2>
+          <p style={{color:'#8b949e',marginBottom:32}}>Hey <strong style={{color:'#f0f6fc'}}>{user.username}</strong> — join Ghost of Stocktwits to unlock the full catalyst calendar.</p>
+          <a href={invite} target="_blank" rel="noreferrer" style={s.loginBtn}>Join Ghost of Stocktwits →</a>
+          <div style={{marginTop:20}}><a href="/api/auth/logout" style={{color:'#6e7681',fontSize:13}}>← Use a different account</a></div>
         </div>
       </div>
     </>
@@ -441,306 +386,52 @@ function NotMemberPage({ user, invite }) {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = {
-  app: {
-    minHeight: '100vh',
-    background: '#0d1117',
-  },
-  header: {
-    background: '#161b22',
-    borderBottom: '1px solid #21262d',
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
-  },
-  headerInner: {
-    maxWidth: 1400,
-    margin: '0 auto',
-    padding: '12px 24px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
-  ghostIcon: { fontSize: 32 },
-  brandName: { fontWeight: 800, fontSize: 18, color: '#f0f6fc' },
-  brandSub: { fontSize: 12, color: '#8b949e' },
-  headerRight: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-  },
-  updateBadge: {
-    fontSize: 12,
-    color: '#4ade80',
-    background: 'rgba(34,197,94,0.1)',
-    padding: '4px 10px',
-    borderRadius: 20,
-    border: '1px solid rgba(34,197,94,0.2)',
-  },
-  userInfo: { display: 'flex', alignItems: 'center', gap: 8 },
-  avatar: { width: 32, height: 32, borderRadius: '50%', border: '2px solid #30363d' },
-  username: { fontSize: 14, fontWeight: 600, color: '#f0f6fc' },
-  logoutBtn: {
-    fontSize: 13,
-    color: '#8b949e',
-    background: 'transparent',
-    border: '1px solid #30363d',
-    padding: '5px 14px',
-    borderRadius: 6,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  main: {
-    maxWidth: 1400,
-    margin: '0 auto',
-    padding: '24px',
-  },
-  statsRow: {
-    display: 'flex',
-    gap: 12,
-    marginBottom: 20,
-    flexWrap: 'wrap',
-  },
-  statCard: {
-    background: '#161b22',
-    border: '1px solid #21262d',
-    borderRadius: 10,
-    padding: '14px 20px',
-    flex: '1 1 120px',
-    textAlign: 'center',
-  },
-  statCount: { fontSize: 28, fontWeight: 800, lineHeight: 1 },
-  statLabel: { fontSize: 12, color: '#8b949e', marginTop: 4 },
-  filtersRow: {
-    display: 'flex',
-    gap: 12,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  searchInput: {
-    background: '#161b22',
-    border: '1px solid #21262d',
-    borderRadius: 8,
-    padding: '9px 14px',
-    color: '#f0f6fc',
-    fontSize: 14,
-    width: 260,
-    transition: 'border-color 0.2s',
-  },
-  filterGroup: { display: 'flex', gap: 6 },
-  filterBtn: {
-    background: '#161b22',
-    border: '1px solid #21262d',
-    borderRadius: 6,
-    padding: '7px 14px',
-    color: '#8b949e',
-    fontSize: 13,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  filterBtnActive: {
-    background: 'rgba(99,102,241,0.2)',
-    border: '1px solid #6366f1',
-    borderRadius: 6,
-    padding: '7px 14px',
-    color: '#818cf8',
-    fontSize: 13,
-    cursor: 'pointer',
-    fontWeight: 600,
-  },
-  resultsLine: {
-    fontSize: 13,
-    color: '#6e7681',
-    marginBottom: 10,
-  },
-  tableWrap: {
-    overflowX: 'auto',
-    background: '#161b22',
-    borderRadius: 12,
-    border: '1px solid #21262d',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: 14,
-  },
-  th: {
-    padding: '12px 16px',
-    textAlign: 'left',
-    fontSize: 12,
-    fontWeight: 600,
-    color: '#8b949e',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    borderBottom: '1px solid #21262d',
-    whiteSpace: 'nowrap',
-    background: '#0d1117',
-    userSelect: 'none',
-  },
-  tr: {
-    borderBottom: '1px solid #21262d',
-    transition: 'background 0.1s',
-  },
-  td: {
-    padding: '11px 16px',
-    verticalAlign: 'middle',
-  },
-  urgencyDot: {
-    display: 'inline-block',
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    marginRight: 4,
-  },
-  watchlistStar: { fontSize: 12, marginLeft: 2 },
-  typeBadge: {
-    display: 'inline-block',
-    padding: '3px 10px',
-    borderRadius: 20,
-    fontSize: 12,
-    fontWeight: 600,
-  },
-  footer: {
-    marginTop: 24,
-    padding: '16px 0',
-    borderTop: '1px solid #21262d',
-    fontSize: 12,
-    color: '#8b949e',
-    textAlign: 'center',
-  },
-  loadingBox: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '80px 0',
-    background: '#161b22',
-    borderRadius: 12,
-    border: '1px solid #21262d',
-  },
-  spinner: {
-    width: 40,
-    height: 40,
-    border: '3px solid #21262d',
-    borderTop: '3px solid #6366f1',
-    borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
-  },
-  // Landing page
-  landing: {
-    minHeight: '100vh',
-    background: '#0d1117',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: '0 24px 60px',
-  },
-  hero: {
-    textAlign: 'center',
-    padding: '80px 0 48px',
-    maxWidth: 640,
-  },
-  heroGhost: { fontSize: 72, display: 'block', marginBottom: 16 },
-  heroTitle: {
-    fontSize: 48,
-    fontWeight: 900,
-    background: 'linear-gradient(135deg, #f0f6fc, #818cf8)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    marginBottom: 16,
-  },
-  heroSub: {
-    fontSize: 20,
-    fontWeight: 600,
-    color: '#f0f6fc',
-    marginBottom: 12,
-  },
-  heroDesc: {
-    fontSize: 15,
-    color: '#8b949e',
-    lineHeight: 1.7,
-    marginBottom: 32,
-  },
-  loginBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    background: '#5865f2',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 8,
-    padding: '14px 32px',
-    fontSize: 16,
-    fontWeight: 700,
-    cursor: 'pointer',
-    textDecoration: 'none',
-    transition: 'opacity 0.2s',
-  },
-  heroSmall: {
-    marginTop: 16,
-    fontSize: 13,
-    color: '#6e7681',
-  },
-  previewWrap: {
-    width: '100%',
-    maxWidth: 1100,
-    position: 'relative',
-    background: '#161b22',
-    borderRadius: 12,
-    border: '1px solid #21262d',
-    overflow: 'hidden',
-    marginBottom: 48,
-  },
-  previewLabel: {
-    padding: '10px 20px',
-    fontSize: 13,
-    color: '#8b949e',
-    borderBottom: '1px solid #21262d',
-    background: '#0d1117',
-  },
-  blurOverlay: {
-    position: 'absolute',
-    inset: 0,
-    top: 40,
-    background: 'rgba(13,17,23,0.7)',
-    backdropFilter: 'blur(2px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  blurCTA: {
-    background: '#161b22',
-    border: '1px solid #21262d',
-    borderRadius: 16,
-    padding: '32px 48px',
-    textAlign: 'center',
-  },
-  featuresRow: {
-    display: 'flex',
-    gap: 16,
-    flexWrap: 'wrap',
-    maxWidth: 1100,
-    width: '100%',
-    marginBottom: 48,
-    justifyContent: 'center',
-  },
-  featureCard: {
-    background: '#161b22',
-    border: '1px solid #21262d',
-    borderRadius: 12,
-    padding: '24px',
-    flex: '1 1 220px',
-    maxWidth: 260,
-  },
-  landingFooter: {
-    fontSize: 13,
-    color: '#6e7681',
-    textAlign: 'center',
-  },
+const s = {
+  app: {minHeight:'100vh',background:'#0d1117'},
+  header: {background:'#161b22',borderBottom:'1px solid #21262d',position:'sticky',top:0,zIndex:100},
+  headerInner: {maxWidth:1500,margin:'0 auto',padding:'12px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10},
+  brand: {display:'flex',alignItems:'center',gap:12},
+  brandName: {fontWeight:800,fontSize:18,color:'#f0f6fc',fontFamily:'sans-serif'},
+  brandSub: {fontSize:12,color:'#8b949e'},
+  updateBadge: {fontSize:12,color:'#4ade80',background:'rgba(34,197,94,0.1)',padding:'4px 10px',borderRadius:20,border:'1px solid rgba(34,197,94,0.2)'},
+  userInfo: {display:'flex',alignItems:'center',gap:8},
+  avatar: {width:32,height:32,borderRadius:'50%',border:'2px solid #30363d'},
+  username: {fontSize:14,fontWeight:600,color:'#f0f6fc'},
+  logoutBtn: {fontSize:13,color:'#8b949e',background:'transparent',border:'1px solid #30363d',padding:'5px 14px',borderRadius:6,cursor:'pointer',textDecoration:'none'},
+  main: {maxWidth:1500,margin:'0 auto',padding:'24px'},
+  statsRow: {display:'flex',gap:12,marginBottom:16,flexWrap:'wrap'},
+  statCard: {background:'#161b22',borderRadius:10,padding:'14px 20px',flex:'1 1 100px',textAlign:'center',transition:'border-color 0.2s'},
+  statCount: {fontSize:26,fontWeight:800,lineHeight:1},
+  statLabel: {fontSize:11,color:'#8b949e',marginTop:4},
+  starsBar: {background:'#161b22',border:'1px solid #21262d',borderRadius:10,padding:'10px 16px',marginBottom:12},
+  starChip: {display:'inline-flex',alignItems:'center',gap:4,background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.3)',color:'#f59e0b',borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:700},
+  chipRemove: {background:'none',border:'none',color:'#f59e0b',cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1},
+  tickerInput: {background:'#0d1117',border:'1px solid #6366f1',borderRadius:6,padding:'6px 10px',color:'#f0f6fc',fontSize:13,width:80,outline:'none'},
+  addBtn: {background:'rgba(99,102,241,0.2)',border:'1px solid #6366f1',color:'#818cf8',borderRadius:6,padding:'6px 12px',fontSize:12,cursor:'pointer',fontWeight:600},
+  cancelBtn: {background:'transparent',border:'1px solid #30363d',color:'#6e7681',borderRadius:6,padding:'6px 12px',fontSize:12,cursor:'pointer'},
+  addStarBtn: {background:'rgba(245,158,11,0.1)',border:'1px dashed rgba(245,158,11,0.4)',color:'#f59e0b',borderRadius:20,padding:'3px 12px',fontSize:12,cursor:'pointer',fontWeight:600},
+  pastBanner: {background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.3)',borderRadius:8,padding:'10px 16px',marginBottom:12,color:'#818cf8',fontSize:14},
+  backBtn: {background:'none',border:'none',color:'#818cf8',cursor:'pointer',fontSize:14,textDecoration:'underline'},
+  filtersRow: {display:'flex',gap:10,marginBottom:10,flexWrap:'wrap',alignItems:'center'},
+  searchInput: {background:'#161b22',border:'1px solid #21262d',borderRadius:8,padding:'9px 14px',color:'#f0f6fc',fontSize:14,width:260},
+  filterGroup: {display:'flex',gap:6,flexWrap:'wrap'},
+  filterBtn: {background:'#161b22',border:'1px solid #21262d',borderRadius:6,padding:'7px 14px',color:'#8b949e',fontSize:13,cursor:'pointer'},
+  filterBtnActive: {background:'rgba(99,102,241,0.2)',border:'1px solid #6366f1',borderRadius:6,padding:'7px 14px',color:'#818cf8',fontSize:13,cursor:'pointer',fontWeight:600},
+  resultsLine: {fontSize:13,color:'#6e7681',marginBottom:10},
+  tableWrap: {overflowX:'auto',background:'#161b22',borderRadius:12,border:'1px solid #21262d'},
+  table: {width:'100%',borderCollapse:'collapse',fontSize:14},
+  th: {padding:'12px 16px',textAlign:'left',fontSize:11,fontWeight:600,color:'#8b949e',textTransform:'uppercase',letterSpacing:'0.05em',borderBottom:'1px solid #21262d',whiteSpace:'nowrap',background:'#0d1117',userSelect:'none'},
+  td: {padding:'10px 16px',verticalAlign:'middle'},
+  typeBadge: {display:'inline-block',padding:'3px 10px',borderRadius:20,fontSize:12,fontWeight:600},
+  loadingBox: {display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'80px',background:'#161b22',borderRadius:12,border:'1px solid #21262d'},
+  spinner: {width:40,height:40,border:'3px solid #21262d',borderTop:'3px solid #6366f1',borderRadius:'50%',animation:'spin 0.8s linear infinite'},
+  footer: {marginTop:24,padding:'16px 0',borderTop:'1px solid #21262d',fontSize:12,color:'#8b949e',textAlign:'center',lineHeight:1.8},
+  landing: {minHeight:'100vh',background:'#0d1117',display:'flex',flexDirection:'column',alignItems:'center',padding:'0 24px 60px'},
+  hero: {textAlign:'center',padding:'80px 0 48px',maxWidth:640},
+  heroTitle: {fontSize:48,fontWeight:900,background:'linear-gradient(135deg, #f0f6fc, #818cf8)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:16},
+  heroSub: {fontSize:20,fontWeight:600,color:'#f0f6fc',marginBottom:12},
+  heroDesc: {fontSize:15,color:'#8b949e',lineHeight:1.7,marginBottom:32},
+  loginBtn: {display:'inline-flex',alignItems:'center',background:'#5865f2',color:'#fff',border:'none',borderRadius:8,padding:'14px 32px',fontSize:16,fontWeight:700,cursor:'pointer',textDecoration:'none'},
+  featuresRow: {display:'flex',gap:16,flexWrap:'wrap',maxWidth:1000,width:'100%',marginBottom:48,justifyContent:'center'},
+  featureCard: {background:'#161b22',border:'1px solid #21262d',borderRadius:12,padding:'24px',flex:'1 1 200px',maxWidth:240},
 }
