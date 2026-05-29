@@ -1,7 +1,7 @@
 export const config = { maxDuration: 60 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+  res.setHeader('Cache-Control', 'no-store')
   const { ticker } = req.query
   if (!ticker) return res.status(400).json({ error: 'ticker required' })
   const t = ticker.toUpperCase()
@@ -13,106 +13,63 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHRO, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: 2000,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: 'You are a financial data extractor. Search for the requested data and return ONLY a valid JSON object with no markdown, no explanation. Use null for fields you cannot confirm.',
+        system: 'You are a financial data extractor. Search for data and output ONLY a raw JSON object. No markdown. No backticks. No explanation. Start your response with { and end with }.',
         messages: [{
           role: 'user',
-          content: `You MUST search the web for current 2025-2026 data. Search these specific queries one by one:
-1. Fetch https://efts.sec.gov/LATEST/search-index?q=%22${t}%22&forms=8-K&dateRange=custom&startdt=2025-01-01&enddt=2026-12-31 for recent SEC filings
-2. Search "${t} offering warrant 2025 2026 SEC filing"
-3. Search "${t} short float 2026 finviz"
-4. Search "${t} warrant strike price 2025 2026"
+          content: `Today is May 29, 2026. Search for the following about ${t} stock. USE ONLY DATA FROM 2025 OR 2026:
 
-Today is May 2026. Only use data from 2025-2026. Ignore anything older. Return ONLY this JSON:
-{
-  "shortFloat": null,
-  "ivRank": null,
-  "analystCount": null,
-  "recommendation": null,
-  "epsWhisper": null,
-  "lastRaiseAmount": null,
-  "lastRaiseType": null,
-  "lastRaiseDate": null,
-  "lastRaisePricePerShare": null,
-  "raiseVsToday": null,
-  "leadInvestors": null,
-  "warrantStrike": null,
-  "warrantExpiry": null,
-  "warrantShares": null,
-  "dilutionNote": null,
-  "keyCatalyst": null,
-  "rxDrugName": null,
-  "rxIndication": null,
-  "rxTRx": null,
-  "rxNRx": null,
-  "rxTrend": null,
-  "rxMarketShare": null,
-  "rxEarningsImplication": null,
-  "secFilings": [],
-  "catalogCatalysts": [],
-  "sharesOutstanding": null,
-  "fullyDilutedShares": null,
-  "fdmc": null,
-  "fdmcNote": null
-}
+Search 1: "${t} SEC 8-K 2026 warrant offering site:sec.gov OR site:globenewswire.com OR site:businesswire.com"
+Search 2: "${t} short float May 2026"  
+Search 3: "${t} warrant strike price 2026"
 
-Search specifically for: total shares outstanding, warrants outstanding (count), options outstanding, convertible notes (shares if converted), then calculate fully diluted shares = shares + warrants + options + convertible shares. Also calculate FDMC = fully diluted shares × current price.
-
-Search for: short float, IV rank, recent SEC 8-K filings with warrant/offering details, analyst price targets, prescription data if applicable.`
+Return ONLY this JSON with real 2025-2026 values (null if not found in 2025-2026):
+{"shortFloat":null,"ivRank":null,"analystCount":null,"recommendation":null,"epsWhisper":null,"lastRaiseAmount":null,"lastRaiseType":null,"lastRaiseDate":null,"lastRaisePricePerShare":null,"raiseVsToday":null,"leadInvestors":null,"warrantStrike":null,"warrantExpiry":null,"warrantShares":null,"dilutionNote":null,"keyCatalyst":null,"rxDrugName":null,"rxIndication":null,"rxTRx":null,"rxNRx":null,"rxTrend":null,"rxMarketShare":null,"rxEarningsImplication":null,"secFilings":[],"catalogCatalysts":[],"sharesOutstanding":null,"fullyDilutedShares":null,"fdmc":null,"fdmcNote":null}`
         }]
       })
     })
 
     if (!r.ok) {
       const err = await r.json()
-      if (r.status === 429) return await knowledgeFallback(t, ANTHRO, res)
+      if (r.status === 429) return await fallback(t, ANTHRO, res)
       return res.status(200).json({ ticker: t, noData: true, debug: `${r.status}: ${err?.error?.message?.slice(0,80)}` })
     }
 
     const d = await r.json()
-    // Web search completes in one round - text is in the response directly
     const text = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+    if (!text) return await fallback(t, ANTHRO, res)
 
-    if (!text) return await knowledgeFallback(t, ANTHRO, res)
-
-    // Find the JSON object anywhere in the response - handles all markdown/text wrapping
     const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return await knowledgeFallback(t, ANTHRO, res)
-    
-    // Clean and parse
-    let jsonStr = jsonMatch[0]
-    // Remove any trailing text after the last }
-    const lastBrace = jsonStr.lastIndexOf('}')
-    jsonStr = jsonStr.substring(0, lastBrace + 1)
-    
-    const data = JSON.parse(jsonStr)
+    if (!jsonMatch) return await fallback(t, ANTHRO, res)
+
+    const data = JSON.parse(jsonMatch[0])
     const filtered = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0))
     )
     return res.status(200).json({ ticker: t, ...filtered, aiLoaded: true, updatedAt: new Date().toISOString() })
 
   } catch (err) {
-    return await knowledgeFallback(t, ANTHRO, res)
+    return await fallback(t, ANTHRO, res)
   }
 }
 
-async function knowledgeFallback(t, ANTHRO, res) {
+async function fallback(t, ANTHRO, res) {
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHRO, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 800,
-        system: 'Return ONLY valid JSON, no markdown.',
-        messages: [{ role: 'user', content: `Based on your knowledge of ${t} stock through early 2026, return ONLY JSON: { "shortFloat": null, "analystCount": null, "recommendation": null, "lastRaiseAmount": null, "lastRaiseType": null, "lastRaiseDate": null, "lastRaisePricePerShare": null, "leadInvestors": null, "warrantStrike": null, "warrantExpiry": null, "warrantShares": null, "dilutionNote": null, "keyCatalyst": null, "rxDrugName": null, "rxIndication": null, "rxTRx": null, "rxNRx": null, "rxEarningsImplication": null, "secFilings": [], "catalogCatalysts": [] }` }]
+        max_tokens: 600,
+        system: 'Output ONLY raw JSON starting with { and ending with }. No markdown.',
+        messages: [{ role: 'user', content: `What do you know about ${t} stock warrants, capital raises, short float, and key catalyst as of early 2026? Return ONLY JSON: {"shortFloat":null,"warrantStrike":null,"warrantExpiry":null,"warrantShares":null,"lastRaiseAmount":null,"lastRaiseType":null,"lastRaiseDate":null,"leadInvestors":null,"dilutionNote":null,"keyCatalyst":null,"sharesOutstanding":null,"fullyDilutedShares":null,"fdmc":null}` }]
       })
     })
     if (!r.ok) return res.status(200).json({ ticker: t, noData: true })
     const d = await r.json()
     const text = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
-    const match = text.replace(/```json|```/g,'').match(/\{[\s\S]*\}/)
+    const match = text.match(/\{[\s\S]*\}/)
     if (!match) return res.status(200).json({ ticker: t, noData: true })
     const data = JSON.parse(match[0])
     const filtered = Object.fromEntries(Object.entries(data).filter(([,v]) => v !== null && !(Array.isArray(v) && v.length === 0)))

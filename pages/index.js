@@ -172,7 +172,6 @@ export default function Home({ initialUser }) {
         fetch(`/api/stockai?ticker=${t}&v=7`)
           .then(r => r.ok ? r.json() : null)
           .then(aiData => {
-            console.log('AI data received:', JSON.stringify(aiData).slice(0,300))
             if (aiData && !aiData.noData) {
               setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 7 } }))
             } else {
@@ -1166,13 +1165,6 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
               ))}
             </div>
           )}
-
-        {/* AI debug info */}
-        {sd.aiDebug && (
-          <div style={{ padding:'8px 20px', background:'rgba(239,68,68,0.1)', fontSize:11, color:'#ef4444' }}>
-            AI debug: {sd.aiDebug}
-          </div>
-        )}
 
         {/* AI loading indicator */}
         {sd.aiLoading && (
