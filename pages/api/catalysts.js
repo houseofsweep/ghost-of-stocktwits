@@ -1,33 +1,49 @@
 const WATCHLIST = ['NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ','PTGX','RYTM','RCKT','SAGE','ALNY','VRTX','SRPT','BMRN','FOLD','KRYS','RARE','BPMC','IONS','ACAD','SNDX','VERA','PRTA','NUVL','VRDN','SRRK','LRMR','SMMT','BEAM','NTLA','CRSP','EDIT','ARWR','RCUS','FULC','PRAX','KYMR','ARVN','KURA','MRTX','REGN','INO']
 
-// Biotech/Pharma tickers to include in earnings feed
-// Add any non-biotech custom tickers here too (e.g. AUR, AMRZ)
-const EARNINGS_WHITELIST = new Set([
-  // Your watchlist
+// Biotech/Pharma SIC industries for auto-labeling
+const BIOTECH_SECTORS = new Set(['Biotechnology','Pharmaceuticals','Drug Manufacturers—General',
+  'Drug Manufacturers—Specialty & Generic','Diagnostics & Research','Medical Devices',
+  'Healthcare','Health Care','Pharmaceutical','Biopharmaceutical','Life Sciences'])
+
+// Custom non-biotech tickers to always include
+const CUSTOM_INCLUDE = new Set(['AUR','PURR','DFDV','ABVE','AMRZ','NVDA','TSLA'])
+
+// Known biotech/pharma tickers (comprehensive list)
+const BIOTECH_TICKERS = new Set([
   'NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ','PTGX','RYTM','RCKT','SAGE',
   'ALNY','VRTX','SRPT','BMRN','FOLD','KRYS','RARE','BPMC','IONS','ACAD','SNDX','VERA',
   'PRTA','NUVL','VRDN','SRRK','LRMR','SMMT','BEAM','NTLA','CRSP','EDIT','ARWR','RCUS',
-  'FULC','PRAX','KYMR','ARVN','KURA','MRTX','REGN','INO',
-  // Major biotech/pharma
-  'GILD','BIIB','AMGN','ABBV','BMY','LLY','MRK','PFE','AZN','NVS','NVO','RHHBY',
-  'MRNA','BNTX','NVAX','SGEN','INCY','EXEL','HZNP','JAZZ','UTHR','ALKS','PCRX',
-  'ITCI','ACAD','SAGE','INVA','MNKD','DNLI','BLUE','FATE','EDIT','NTLA','BEAM',
-  'ARCT','VERV','CRBU','GRPH','PRIME','TALS','SANA','ALLO','NKTR','CLDX','IMVT',
-  'RCUS','AGEN','SURF','IMMU','SEER','LYEL','NKTR','ADCT','MGNX','IMGN','AGIO',
-  'FORMA','SYRS','PMVP','KRTX','ETNB','PRME','TPTX','ERAS','AKSO','PLRX','IMTX',
-  'HOOK','KYMR','MRUS','ARVN','KDNY','PTGX','CGEM','DBTX','XNCR','DRNA','QURE',
-  'ANAB','CERE','RLAY','MIRM','ALDX','OVID','CRVS','ITOS','RUBY','AUPH','ATRA',
-  'BLFS','CCCC','ABUS','LPTX','AGEN','CTIC','EPZM','HALO','MDGL','OMER','PBYI',
-  'PCVX','PHAT','RDUS','REPL','RGNX','RLMD','SBOW','SDGR','SLDB','TGTX','THRX',
-  'TTOO','TVTX','VCEL','VNDA','VRCA','VRPX','ZYME','ZYNX','DVAX','FLGT','GOSS',
-  'ARDX','ARQT','AVDL','AVXL','AXSM','BHVN','BOLT','BPMC','BTAI','RVNC','STOK',
-  'CTIC','CYRX','DXCM','ETNB','EVLO','FIXX','GTHX','GWPH','HALO','HRMY','IOVA',
-  'IRON','ITCI','JANX','KDNY','KNSA','LGND','LNTH','MASS','MDGL','MERUS','MGNX',
-  'MIST','MORF','MREO','MRSN','MRTX','MYOV','NBTX','NKTR','NRIX','NVAX','NVBO',
-  'NVCR','OGEN','PBYI','PCVX','PHAT','PLRX','PMVP','PRME','PTCT','PTGX','QURE',
-  'RAPT','RDFN','RDUS','REPL','RGNX','RLMD','RLYB','RMTI','RNAZ','RUBY','RXDX',
-  // Custom non-biotech adds
-  'AUR','PURR','DFDV','ABVE','AMRZ',
+  'FULC','PRAX','KYMR','ARVN','KURA','MRTX','REGN','INO','GILD','BIIB','AMGN','ABBV',
+  'BMY','LLY','MRK','PFE','AZN','NVS','NVO','MRNA','BNTX','NVAX','INCY','EXEL','JAZZ',
+  'UTHR','ALKS','PCRX','ITCI','MNKD','DNLI','BLUE','FATE','ARCT','VERV','CRBU','GRPH',
+  'TALS','SANA','ALLO','NKTR','CLDX','IMVT','AGEN','SURF','ADCT','MGNX','IMGN','AGIO',
+  'KRTX','ETNB','TPTX','ERAS','PLRX','IMTX','HOOK','MRUS','KDNY','CGEM','DBTX','XNCR',
+  'DRNA','QURE','ANAB','CERE','RLAY','MIRM','ALDX','OVID','CRVS','ITOS','RUBY','AUPH',
+  'ATRA','CCCC','ABUS','LPTX','CTIC','EPZM','HALO','MDGL','OMER','PBYI','PCVX','PHAT',
+  'RDUS','REPL','RGNX','RLMD','TGTX','TVTX','VCEL','VNDA','ZYME','DVAX','FLGT','GOSS',
+  'ARDX','ARQT','AVDL','AVXL','AXSM','BHVN','BOLT','BTAI','RVNC','STOK','CYRX','DXCM',
+  'EVLO','FIXX','GTHX','HRMY','IOVA','JANX','KNSA','LGND','LNTH','MASS','MERUS','MORF',
+  'MREO','MRSN','MYOV','NBTX','NRIX','NVCR','OGEN','RAPT','RXDX','RLYB','RMTI','RNAZ',
+  'SDGR','SLDB','TTOO','VRCA','ZNTL','YMAB','XENE','WVMT','TYRA','TRVN','TPVG','TPST',
+  'TNGX','TMDI','TLSA','TKNO','TIRX','THTX','TFSL','TARS','TALK','SYRA','SWAV','SURF',
+  'STXS','STVN','STRO','STRN','STOK','SSTI','SSYS','SRTX','SRGA','SQFT','SPPI','SPOK',
+  'SOLT','SNGX','SNAX','SMMT','SLNO','SLDB','SKIN','SITM','SIGA','SIBN','SHPH','SGMO',
+  'SESN','SENS','SEER','SDGR','SCVX','SCPH','SBEV','SAVA','SATX','SASM','SABS','RZLT',
+  'RXRX','RVMD','RVSB','RUTH','RUBY','RSSS','RSLS','RRBI','RPTX','RPID','ROIV','RLAY',
+  'RKLB','RIGL','RGEN','RGBP','RFMZ','REPL','REGO','REGN','REED','RDUS','RDBX','RCUS',
+  'RCKT','RCAT','RBKB','RAPT','RAMP','RALN','RADN','QURE','QNST','QLYS','QIPT','QFIN',
+  'PTYX','PTRS','PTPI','PTHM','PTCT','PSTV','PSQH','PSIX','PRXS','PRTS','PRPO','PRME',
+  'PRVA','PRTK','PRTA','PRPH','PRLD','PRKR','PRFX','PRDO','PRCT','PRAX','PRAA','PNTM',
+  'PLRX','PLAB','PKOH','PIXM','PIXY','PLAB','PKST','PIRS','PHAT','PGNY','PFNX','PFIS',
+  'PDYN','PDVW','PDSB','PDFS','PCRX','PCVX','PCSA','PCOM','PBYI','PBAX','PASG','PARR',
+  'OTRK','OSUR','OSMT','OSIS','OSEA','OSBC','ORIC','ORGO','ORCL','ORBT','OPTN','OPKO',
+  'OPES','ONVO','ONMD','ONCT','OMGA','OMCL','OMAB','OMER','OLFX','OLMA','OLBG','OIIM',
+  'OCUP','OCSL','OCIO','OCEA','OCAX','OBBK','NUVL','NUVB','NTLA','NRIX','NRDX','NPAB',
+  'NOVN','NOVA','NKTR','NJMC','NIXX','NITO','NIXX','NHTC','NGNE','NFLX','NFGC','NEXN',
+  'NERV','NEOS','NEOG','NEMD','NBTX','NBTB','NBIX','NBEV','NAUT','NATR','NARI','NAPA',
+  'NANX','NAMS','NABL','MYNZ','MYOV','MYRG','MYMD','MYFW','MXCT','MWRK','MWRB','MVIS',
+  'MVBF','MURA','MURO','MTNB','MRVI','MRSN','MRNA','MROW','MROS','MRKR','MRIN','MRGE',
+  'MRAM','MRAI','MOXC','MOTN','MOSY','MORF','MORN','MOREX','MOON','MNKD','MNMD','MIST',
 ])
 
 const ALL_CATALYSTS = [
@@ -575,18 +591,27 @@ export default async function handler(req, res) {
       const data = await r.json()
       if (Array.isArray(data)) {
         liveEarnings = data
-          .filter(e => e.symbol && e.date && EARNINGS_WHITELIST.has(e.symbol.toUpperCase()))
+          .filter(e => e.symbol && e.date && (
+            BIOTECH_TICKERS.has(e.symbol.toUpperCase()) ||
+            CUSTOM_INCLUDE.has(e.symbol.toUpperCase())
+          ))
           .map(e => {
-            const epsStr = e.epsEstimated != null ? `EPS est: ${e.epsEstimated >= 0?'+':''}${e.epsEstimated}` : ''
-            const revStr = e.revenueEstimated != null ? `Rev est: $${(e.revenueEstimated/1e6).toFixed(0)}M` : ''
-            const detail = [epsStr, revStr].filter(Boolean).join(' · ')
+            const epsStr = e.epsEstimated != null
+              ? `EPS: ${e.epsEstimated >= 0 ? '+' : ''}${Number(e.epsEstimated).toFixed(2)}`
+              : null
+            const revStr = e.revenueEstimated != null
+              ? `Rev: $${e.revenueEstimated >= 1e9
+                  ? (e.revenueEstimated/1e9).toFixed(1)+'B'
+                  : (e.revenueEstimated/1e6).toFixed(0)+'M'}`
+              : null
+            const estimates = [epsStr, revStr].filter(Boolean).join('  ·  ')
             return {
               date: e.date,
               ticker: e.symbol,
               drug: 'Earnings',
-              catalyst: `Earnings Report${detail ? ' — ' + detail : ''}`,
+              catalyst: `Earnings Report`,
               company: e.symbol,
-              condition: detail,
+              condition: estimates || '',
               nctId: '',
               type: 'earnings',
               source: 'FMP Live',
