@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         system: 'You are a financial data extractor. Search for the requested data and return ONLY a valid JSON object with no markdown, no explanation. Use null for fields you cannot confirm.',
         messages: [{
           role: 'user',
-          content: `Search for current data on ${t} stock and return ONLY this JSON object with real values:
+          content: `Search for the MOST RECENT 2025-2026 data on ${t} stock. Focus on filings and events from 2025 and 2026 only. Return ONLY this JSON object with real current values:
 {
   "shortFloat": null,
   "ivRank": null,
