@@ -500,7 +500,33 @@ const ALL_CATALYSTS = [
   {date:'2026-09-07',ticker:'PFE',drug:'FDA',catalyst:'FDA PDUFA Date lead asset (priority review)',company:'',condition:'',nctId:'',type:'pdufa',source:'CatalystAlert'},
   {date:'2026-09-07',ticker:'CAPR',drug:'FDA',catalyst:'FDA PDUFA Date CAP-1002 (standard)',company:'',condition:'',nctId:'',type:'pdufa',source:'CatalystAlert'},
   {date:'2026-09-08',ticker:'MLYS',drug:'FDA',catalyst:'FDA PDUFA Date (standard)',company:'',condition:'',nctId:'',type:'pdufa',source:'CatalystAlert'},
-  {date:'2026-09-08',ticker:'NVSEF',drug:'YTB323',catalyst:'YTB323 Phase 2 Est. Readout',company:'',condition:'Systemic Lupus Erythematosus',nctId:'NCT05798117',type:'phase2',source:'CatalystAlert'},]
+  {date:'2026-09-08',ticker:'NVSEF',drug:'YTB323',catalyst:'YTB323 Phase 2 Est. Readout',company:'',condition:'Systemic Lupus Erythematosus',nctId:'NCT05798117',type:'phase2',source:'CatalystAlert'},
+
+  // ── EARNINGS ──────────────────────────────────────────────────────────────
+  {date:'2026-06-03',ticker:'SNDX',drug:'Earnings',catalyst:'Q1 2026 Earnings Report',company:'Syndax Pharmaceuticals',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-06-04',ticker:'FOLD',drug:'Earnings',catalyst:'Q1 2026 Earnings Report',company:'Amicus Therapeutics',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-06-05',ticker:'RCKT',drug:'Earnings',catalyst:'Q1 2026 Earnings Report',company:'Rocket Pharmaceuticals',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-06-05',ticker:'RARE',drug:'Earnings',catalyst:'Q1 2026 Earnings Report',company:'Ultragenyx',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-06-09',ticker:'BEAM',drug:'Earnings',catalyst:'Q1 2026 Earnings Report',company:'Beam Therapeutics',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-06-10',ticker:'NTLA',drug:'Earnings',catalyst:'Q1 2026 Earnings Report',company:'Intellia Therapeutics',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-06-11',ticker:'CRSP',drug:'Earnings',catalyst:'Q1 2026 Earnings Report',company:'CRISPR Therapeutics',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-10',ticker:'NUVB',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Nuvation Bio',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-14',ticker:'RVMD',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Revolution Medicines',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-15',ticker:'IDYA',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'IDEAYA Biosciences',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-16',ticker:'VSTM',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Verastem Oncology',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-22',ticker:'ATAI',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'ATAI Life Sciences',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-28',ticker:'REGN',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Regeneron Pharmaceuticals',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-29',ticker:'VRTX',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Vertex Pharmaceuticals',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-30',ticker:'BMRN',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'BioMarin Pharmaceutical',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-07-31',ticker:'IONS',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Ionis Pharmaceuticals',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-08-05',ticker:'OTLK',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Outlook Therapeutics',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-08-06',ticker:'AMRZ',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Amrize',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-08-07',ticker:'SPRB',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Spruce Biosciences',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-08-11',ticker:'ACAD',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'ACADIA Pharmaceuticals',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-08-12',ticker:'ARWR',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Arrowhead Pharmaceuticals',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-08-13',ticker:'SRPT',drug:'Earnings',catalyst:'Q2 2026 Earnings Report',company:'Sarepta Therapeutics',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+  {date:'2026-08-13',ticker:'OTLK',drug:'Earnings',catalyst:'Q3 Earnings Report (est.)',company:'Outlook Therapeutics',condition:'',nctId:'',type:'earnings',source:'Earnings Calendar'},
+]
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=1800')
