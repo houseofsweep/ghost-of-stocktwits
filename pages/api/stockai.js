@@ -1,7 +1,7 @@
 export const config = { maxDuration: 60 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=1800')
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
   const { ticker } = req.query
   if (!ticker) return res.status(400).json({ error: 'ticker required' })
   const t = ticker.toUpperCase()

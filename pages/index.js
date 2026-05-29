@@ -138,11 +138,11 @@ export default function Home({ initialUser }) {
       setTimeout(() => {
         defaultTickers.forEach((t, i) => {
           setTimeout(() => {
-            fetch(`/api/stockai?ticker=${t}&v=5`)
+            fetch(`/api/stockai?ticker=${t}&v=6`)
               .then(r => r.ok ? r.json() : null)
               .then(aiData => {
                 if (aiData && !aiData.noData) {
-                  setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 5 } }))
+                  setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 6 } }))
                 }
               }).catch(() => {})
           }, i * 3000) // stagger 3s apart to avoid rate limits
@@ -156,11 +156,11 @@ export default function Home({ initialUser }) {
     const t = catalyst.ticker?.toUpperCase()
     if (!t || stockData[t]?.aiLoaded || stockData[t]?.aiLoading) return
     // Start AI fetch in background without showing panel
-    fetch(`/api/stockai?ticker=${t}&v=5`)
+    fetch(`/api/stockai?ticker=${t}&v=6`)
       .then(r => r.ok ? r.json() : null)
       .then(aiData => {
         if (aiData && !aiData.noData) {
-          setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 5 } }))
+          setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 6 } }))
         }
       })
       .catch(() => {})
@@ -171,7 +171,7 @@ export default function Home({ initialUser }) {
     const t = catalyst.ticker?.toUpperCase()
     if (!t) return
     // If we already have full data (with AI v2), don't reload
-    if (stockData[t]?.aiLoaded && stockData[t]?.aiV === 5) return
+    if (stockData[t]?.aiLoaded && stockData[t]?.aiV === 6) return
     // If FMP data already loaded and AI is loading, don't restart
     if (stockData[t]?.aiLoading) return
     setStockLoading(true)
@@ -183,12 +183,12 @@ export default function Home({ initialUser }) {
         setStockData(prev => ({ ...prev, [t]: { ...data, aiLoading: true } }))
         setStockLoading(false)
         // Then load AI data async (slow ~10-20s) without blocking panel
-        fetch(`/api/stockai?ticker=${t}&v=5`)
+        fetch(`/api/stockai?ticker=${t}&v=6`)
           .then(r => r.ok ? r.json() : null)
           .then(aiData => {
             console.log('AI data received:', JSON.stringify(aiData).slice(0,300))
             if (aiData && !aiData.noData) {
-              setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 5 } }))
+              setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 6 } }))
             } else {
               setStockData(prev => ({ ...prev, [t]: { ...prev[t], aiLoading: false, aiLoaded: true, aiDebug: aiData?.debug || aiData?.raw || 'noData' } }))
             }
@@ -1146,15 +1146,20 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
           {sd.catalogCatalysts?.length > 0 && (
             <div className="panel-section">
               <div style={s.sectionTitle}>🔍 Catalysts Found in SEC Filings <span style={{ fontSize:10, color:'#4ade80', marginLeft:6 }}>AI-detected</span></div>
-              {sd.catalogCatalysts.map((c, i) => (
-                <div key={i} style={{ marginBottom:8, padding:'8px 10px', background:'rgba(99,102,241,0.06)', borderRadius:6, border:'1px solid rgba(99,102,241,0.15)' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
-                    {c.date && <span style={{ fontSize:11, color:'#6e7681' }}>{c.date}</span>}
-                    {c.type && <span style={{ ...s.typeBadge, background: EVENT_TYPES[c.type]?.bg||'rgba(99,102,241,0.15)', color: EVENT_TYPES[c.type]?.color||'#818cf8', fontSize:10 }}>{EVENT_TYPES[c.type]?.icon||'📋'} {EVENT_TYPES[c.type]?.label||c.type}</span>}
+              {sd.catalogCatalysts.map((c, i) => {
+                const desc = typeof c === 'string' ? c : c.description || c.date || JSON.stringify(c)
+                const cDate = typeof c === 'object' ? c.date : null
+                const cType = typeof c === 'object' ? c.type : null
+                return (
+                  <div key={i} style={{ marginBottom:8, padding:'8px 10px', background:'rgba(99,102,241,0.06)', borderRadius:6, border:'1px solid rgba(99,102,241,0.15)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom: desc ? 3 : 0 }}>
+                      {cDate && <span style={{ fontSize:11, color:'#6e7681' }}>{cDate}</span>}
+                      {cType && <span style={{ ...s.typeBadge, background: EVENT_TYPES[cType]?.bg||'rgba(99,102,241,0.15)', color: EVENT_TYPES[cType]?.color||'#818cf8', fontSize:10 }}>{EVENT_TYPES[cType]?.icon||'📋'} {EVENT_TYPES[cType]?.label||cType}</span>}
+                    </div>
+                    {desc && <div style={{ fontSize:12, color:'#c9d1d9' }}>{desc}</div>}
                   </div>
-                  <div style={{ fontSize:12, color:'#c9d1d9' }}>{c.description}</div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
