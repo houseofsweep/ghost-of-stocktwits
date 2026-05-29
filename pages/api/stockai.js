@@ -18,7 +18,13 @@ export default async function handler(req, res) {
         system: 'You are a financial data extractor. Search for the requested data and return ONLY a valid JSON object with no markdown, no explanation. Use null for fields you cannot confirm.',
         messages: [{
           role: 'user',
-          content: `Search for the MOST RECENT 2025-2026 data on ${t} stock. Focus on filings and events from 2025 and 2026 only. Return ONLY this JSON object with real current values:
+          content: `You MUST search the web for current 2025-2026 data. Search these specific queries one by one:
+1. Fetch https://efts.sec.gov/LATEST/search-index?q=%22${t}%22&forms=8-K&dateRange=custom&startdt=2025-01-01&enddt=2026-12-31 for recent SEC filings
+2. Search "${t} offering warrant 2025 2026 SEC filing"
+3. Search "${t} short float 2026 finviz"
+4. Search "${t} warrant strike price 2025 2026"
+
+Today is May 2026. Only use data from 2025-2026. Ignore anything older. Return ONLY this JSON:
 {
   "shortFloat": null,
   "ivRank": null,
