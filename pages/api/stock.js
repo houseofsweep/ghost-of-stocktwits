@@ -1,60 +1,125 @@
-// Stock deep dive panel
-// Free tier: FMP profile (price, market cap, sector, description)
-// + Claude AI web search for earnings estimates, cash, analyst targets, SEC data
-
 const FMP = process.env.FMP_API_KEY
+const BASE = 'https://financialmodelingprep.com/stable'
+
+async function get(path) {
+  const sep = path.includes('?') ? '&' : '?'
+  try {
+    const r = await fetch(`${BASE}${path}${sep}apikey=${FMP}`)
+    if (!r.ok) return null
+    const d = await r.json()
+    if (d?.['Error Message'] || d?.error) return null
+    return Array.isArray(d) ? (d[0] || null) : d
+  } catch { return null }
+}
+
+async function getArr(path) {
+  const sep = path.includes('?') ? '&' : '?'
+  try {
+    const r = await fetch(`${BASE}${path}${sep}apikey=${FMP}`)
+    if (!r.ok) return []
+    const d = await r.json()
+    if (!Array.isArray(d)) return []
+    return d
+  } catch { return [] }
+}
+
+function fmt(n) {
+  if (n == null) return null
+  const a = Math.abs(n), s = n < 0 ? '-' : ''
+  if (a >= 1e9) return `${s}$${(a/1e9).toFixed(1)}B`
+  if (a >= 1e6) return `${s}$${(a/1e6).toFixed(1)}M`
+  if (a >= 1e3) return `${s}$${(a/1e3).toFixed(0)}K`
+  return `${s}$${a.toFixed(2)}`
+}
+
+function fmtCap(n) {
+  if (!n) return null
+  if (n >= 1e12) return `$${(n/1e12).toFixed(1)}T`
+  if (n >= 1e9)  return `$${(n/1e9).toFixed(1)}B`
+  if (n >= 1e6)  return `$${(n/1e6).toFixed(0)}M`
+  return `$${n.toLocaleString()}`
+}
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=900')
+  res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=600')
   const { ticker } = req.query
   if (!ticker) return res.status(400).json({ error: 'ticker required' })
   const t = ticker.toUpperCase()
 
   try {
-    // FMP profile is free — gets us price, market cap, sector, description
-    const profileRes = await fetch(
-      `https://financialmodelingprep.com/stable/profile?symbol=${t}&apikey=${FMP}`
-    )
-    let profile = null
-    if (profileRes.ok) {
-      const d = await profileRes.json()
-      profile = Array.isArray(d) ? d[0] : d
-      if (profile?.['Error Message']) profile = null
-    }
+    const today = new Date(); today.setHours(0,0,0,0)
+    const end120 = new Date(); end120.setDate(end120.getDate()+120)
+    const todayStr = today.toISOString().split('T')[0]
+    const endStr = end120.toISOString().split('T')[0]
 
-    // Claude AI web search for everything else
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1200,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{
-          role: 'user',
-          content: `Search for current financial data on ${t} stock and return ONLY a JSON object, no markdown, no explanation.
+    const [profile, quote, cf, bs, pt, earningsCal] = await Promise.all([
+      get(`/profile?symbol=${t}`),
+      get(`/quote?symbol=${t}`),
+      getArr(`/cash-flow-statement?symbol=${t}&period=quarter&limit=4`),
+      getArr(`/balance-sheet-statement?symbol=${t}&period=quarter&limit=2`),
+      get(`/price-target-consensus?symbol=${t}`),
+      getArr(`/earnings-calendar?from=${todayStr}&to=${endStr}`),
+    ])
 
-Search for: next earnings date, EPS estimate, EPS whisper, revenue estimate, cash on hand, quarterly burn rate, cash runway, analyst price targets (low/mean/high), analyst count, consensus rating (Buy/Hold/Sell), short float %, IV rank, last capital raise (amount/type/date/price/investors), warrant details (strike/expiry/shares), dilution risk, key upcoming catalyst.
+    if (!profile && !quote) return res.status(404).json({ error: 'Ticker not found' })
 
-Return this exact JSON (null for missing):
+    // Price & company
+    const price      = quote?.price ?? profile?.price ?? null
+    const marketCap  = quote?.marketCap ?? profile?.mktCap ?? null
+    const week52High = quote?.yearHigh ?? (profile?.range ? parseFloat(profile.range.split('-')[1]) : null)
+    const week52Low  = quote?.yearLow  ?? (profile?.range ? parseFloat(profile.range.split('-')[0]) : null)
+
+    // Balance sheet — cash
+    const latestBS   = bs[0] || null
+    const cashRaw    = latestBS?.cashAndCashEquivalents ?? latestBS?.cashAndShortTermInvestments ?? null
+    const totalDebt  = latestBS?.totalDebt ?? null
+
+    // Cash flow — burn rate
+    const latestCF   = cf[0] || null
+    const prevCF     = cf[1] || null
+    const opCF       = latestCF?.operatingCashFlow ?? null
+    const burnRaw    = opCF && opCF < 0 ? Math.abs(opCF) : null
+    const runway     = cashRaw && burnRaw ? cashRaw / burnRaw : null
+    const runwayMos  = runway ? Math.round(runway * 3) : null
+
+    // Free cash flow
+    const fcf        = latestCF?.freeCashFlow ?? null
+
+    // Earnings from calendar
+    const nextEarnings = earningsCal.find(e => e.symbol === t && new Date(e.date+'T00:00:00') >= today)
+    const earningsDate = nextEarnings?.date ?? null
+    const earningsDaysOut = earningsDate
+      ? Math.round((new Date(earningsDate+'T00:00:00') - today) / 86400000)
+      : null
+    const epsEstimated = nextEarnings?.epsEstimated ?? null
+    const revenueEstimated = nextEarnings?.revenueEstimated ?? null
+
+    // Analyst price targets
+    const targetLow    = pt?.priceTargetLow ?? null
+    const targetHigh   = pt?.priceTargetHigh ?? null
+    const targetMean   = pt?.priceTargetAverage ?? null
+    const targetMedian = pt?.priceTargetMedian ?? null
+
+    // Use Claude AI for: EPS whisper, analyst count/rec, short float, SEC 8-K data
+    // (endpoints not available on Starter)
+    let aiData = {}
+    try {
+      const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          messages: [{
+            role: 'user',
+            content: `Search for ${t} stock and return ONLY JSON, no markdown:
 {
-  "earningsDate": null,
-  "earningsDaysOut": null,
-  "epsEstimate": null,
   "epsWhisper": null,
-  "revenueEstimate": null,
-  "revenueEstimateFmt": null,
-  "cash": null,
-  "quarterlyBurn": null,
-  "runway": null,
-  "runwayMonths": null,
-  "targetLow": null,
-  "targetMean": null,
-  "targetHigh": null,
   "analystCount": null,
   "recommendation": null,
   "shortFloat": null,
@@ -72,73 +137,112 @@ Return this exact JSON (null for missing):
   "keyCatalyst": null,
   "secLink": null
 }`
-        }]
-      })
-    })
-
-    let aiData = {}
-    if (aiRes.ok) {
-      const raw = await aiRes.json()
-      // Handle multi-turn tool use
-      let text = (raw.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
-
-      // If tool was used but no text yet, do follow-up
-      if (!text && (raw.content || []).some(b => b.type === 'tool_use')) {
-        const toolResults = (raw.content || [])
-          .filter(b => b.type === 'tool_use')
-          .map(b => ({ type: 'tool_result', tool_use_id: b.id, content: 'Search completed' }))
-
-        const followUp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': process.env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1200,
-            tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-            messages: [
-              { role: 'user', content: `Search for ${t} stock financial data and return ONLY JSON with: earningsDate, earningsDaysOut, epsEstimate, epsWhisper, revenueEstimate, revenueEstimateFmt, cash, quarterlyBurn, runway, runwayMonths, targetLow, targetMean, targetHigh, analystCount, recommendation, shortFloat, ivRank, lastRaiseAmount, lastRaiseType, lastRaiseDate, lastRaisePricePerShare, raiseVsToday, leadInvestors, warrantStrike, warrantExpiry, warrantShares, dilutionNote, keyCatalyst, secLink. Use null for missing.` },
-              { role: 'assistant', content: raw.content },
-              { role: 'user', content: toolResults }
-            ]
-          })
+          }]
         })
+      })
 
-        if (followUp.ok) {
-          const fd = await followUp.json()
-          text = (fd.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
+      if (aiRes.ok) {
+        const raw = await aiRes.json()
+        let text = (raw.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
+
+        // Follow up if tool was used
+        if (!text && (raw.content||[]).some(b=>b.type==='tool_use')) {
+          const toolResults = (raw.content||[])
+            .filter(b=>b.type==='tool_use')
+            .map(b=>({ type:'tool_result', tool_use_id:b.id, content:'done' }))
+          const f2 = await fetch('https://api.anthropic.com/v1/messages', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01' },
+            body: JSON.stringify({
+              model:'claude-sonnet-4-20250514', max_tokens:800,
+              tools:[{type:'web_search_20250305',name:'web_search'}],
+              messages:[
+                {role:'user',content:`Search ${t} stock data, return ONLY JSON with: epsWhisper, analystCount, recommendation, shortFloat, ivRank, lastRaiseAmount, lastRaiseType, lastRaiseDate, lastRaisePricePerShare, raiseVsToday, leadInvestors, warrantStrike, warrantExpiry, warrantShares, dilutionNote, keyCatalyst, secLink`},
+                {role:'assistant',content:raw.content},
+                {role:'user',content:toolResults}
+              ]
+            })
+          })
+          if (f2.ok) {
+            const fd = await f2.json()
+            text = (fd.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('')
+          }
         }
-      }
 
-      if (text) {
-        try {
-          const clean = text.replace(/```json|```/g, '').trim()
+        if (text) {
+          const clean = text.replace(/```json|```/g,'').trim()
           const match = clean.match(/\{[\s\S]*\}/)
           if (match) aiData = JSON.parse(match[0])
-        } catch {}
+        }
       }
-    }
+    } catch {}
 
     return res.status(200).json({
       ticker: t,
-      // From FMP profile (free)
-      companyName: profile?.companyName || null,
-      sector: profile?.sector || null,
-      industry: profile?.industry || null,
-      description: profile?.description || null,
-      website: profile?.website || null,
-      price: profile?.price || null,
-      marketCap: profile ? formatCap(profile.mktCap) : null,
-      marketCapRaw: profile?.mktCap || null,
-      week52High: profile?.range ? parseFloat(profile.range.split('-')[1]) : null,
-      week52Low: profile?.range ? parseFloat(profile.range.split('-')[0]) : null,
-      avgVolume: profile?.volAvg || null,
-      beta: profile?.beta || null,
-      // From Claude AI search
-      ...aiData,
+      companyName:  profile?.companyName ?? null,
+      sector:       profile?.sector ?? null,
+      industry:     profile?.industry ?? null,
+      description:  profile?.description ?? null,
+      website:      profile?.website ?? null,
+      ceo:          profile?.ceo ?? null,
+      employees:    profile?.fullTimeEmployees ?? null,
+      exchange:     profile?.exchange ?? null,
+
+      price,
+      marketCap:    fmtCap(marketCap),
+      marketCapRaw: marketCap,
+      week52High,
+      week52Low,
+      avgVolume:    quote?.avgVolume ?? profile?.volAvg ?? null,
+      beta:         profile?.beta ?? null,
+      change:       quote?.change ?? null,
+      changePct:    quote?.changePercentage ?? null,
+      dayHigh:      quote?.dayHigh ?? null,
+      dayLow:       quote?.dayLow  ?? null,
+
+      // Earnings
+      earningsDate,
+      earningsDaysOut,
+      epsEstimated,
+      epsEstimatedFmt: epsEstimated != null ? `${epsEstimated >= 0?'+':''}${Number(epsEstimated).toFixed(2)}` : null,
+      revenueEstimated,
+      revenueEstimateFmt: revenueEstimated ? fmt(revenueEstimated) : null,
+
+      // Balance sheet
+      cash:         fmt(cashRaw),
+      cashRaw,
+      totalDebt:    fmt(totalDebt),
+      quarterlyBurn: fmt(burnRaw),
+      quarterlyBurnRaw: burnRaw,
+      freeCashFlow: fmt(fcf),
+      runway:       runway ? `${runway.toFixed(1)} qtrs` : null,
+      runwayMonths: runwayMos,
+
+      // Analyst targets
+      targetLow,
+      targetMean,
+      targetHigh,
+      targetMedian,
+
+      // From Claude AI
+      epsWhisper:    aiData.epsWhisper    ?? null,
+      analystCount:  aiData.analystCount  ?? null,
+      recommendation:aiData.recommendation?? null,
+      shortFloat:    aiData.shortFloat    ?? null,
+      ivRank:        aiData.ivRank        ?? null,
+      lastRaiseAmount:       aiData.lastRaiseAmount        ?? null,
+      lastRaiseType:         aiData.lastRaiseType          ?? null,
+      lastRaiseDate:         aiData.lastRaiseDate          ?? null,
+      lastRaisePricePerShare:aiData.lastRaisePricePerShare ?? null,
+      raiseVsToday:          aiData.raiseVsToday           ?? null,
+      leadInvestors:         aiData.leadInvestors          ?? null,
+      warrantStrike:         aiData.warrantStrike          ?? null,
+      warrantExpiry:         aiData.warrantExpiry          ?? null,
+      warrantShares:         aiData.warrantShares          ?? null,
+      dilutionNote:          aiData.dilutionNote           ?? null,
+      keyCatalyst:           aiData.keyCatalyst            ?? null,
+      secLink:               aiData.secLink                ?? null,
+
       updatedAt: new Date().toISOString(),
     })
 
@@ -146,12 +250,4 @@ Return this exact JSON (null for missing):
     console.error('Stock API error:', err)
     return res.status(500).json({ error: err.message })
   }
-}
-
-function formatCap(n) {
-  if (!n) return null
-  if (n >= 1e12) return `$${(n/1e12).toFixed(1)}T`
-  if (n >= 1e9)  return `$${(n/1e9).toFixed(1)}B`
-  if (n >= 1e6)  return `$${(n/1e6).toFixed(0)}M`
-  return `$${n.toLocaleString()}`
 }
