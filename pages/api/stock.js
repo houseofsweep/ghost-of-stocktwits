@@ -36,9 +36,13 @@ function fmt(n) {
   return `${s}$${a.toFixed(2)}`
 }
 
-function normalizeRaw(n) {
+function normalizeRaw(n, marketCapRaw) {
   if (n == null) return null
-  if (Math.abs(n) > 5e11) return n / 1000
+  // FMP bug: some small-cap tickers return values 1,000,000x too large
+  // Detect by comparing to market cap — cash/burn can't be 1000x bigger than market cap
+  if (marketCapRaw && Math.abs(n) > marketCapRaw * 500) {
+    return n / 1000000
+  }
   return n
 }
 
@@ -81,22 +85,22 @@ export default async function handler(req, res) {
 
     // Balance sheet — cash
     const latestBS   = bs[0] || null
-    const cashRaw    = normalizeRaw(latestBS?.cashAndCashEquivalents ?? latestBS?.cashAndShortTermInvestments ?? null)
-    const totalDebt  = normalizeRaw(latestBS?.totalDebt ?? null)
+    const cashRaw    = normalizeRaw(latestBS?.cashAndCashEquivalents ?? latestBS?.cashAndShortTermInvestments ?? null, marketCap)
+    const totalDebt  = normalizeRaw(latestBS?.totalDebt ?? null, marketCap)
 
     // Cash flow — burn rate
     const latestCF   = cf[0] || null
     const prevCF     = cf[1] || null
     // Use operating cash flow for burn — negative = cash burn
-    const opCF       = normalizeRaw(latestCF?.operatingCashFlow ?? null)
-    const capEx      = normalizeRaw(latestCF?.capitalExpenditure ?? 0)
+    const opCF       = normalizeRaw(latestCF?.operatingCashFlow ?? null, marketCap)
+    const capEx      = normalizeRaw(latestCF?.capitalExpenditure ?? 0, marketCap)
     // Quarterly burn = abs(operating CF) if negative
     const burnRaw    = opCF && opCF < 0 ? Math.abs(opCF) : null
     const runway     = cashRaw && burnRaw ? cashRaw / burnRaw : null
     const runwayMos  = runway ? Math.round(runway * 3) : null
 
     // Free cash flow
-    const fcf        = normalizeRaw(latestCF?.freeCashFlow ?? null)
+    const fcf        = normalizeRaw(latestCF?.freeCashFlow ?? null, marketCap)
 
     // Earnings from calendar
     const nextEarnings = earningsCal.find(e => e.symbol === t && new Date(e.date+'T00:00:00') >= today)
