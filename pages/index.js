@@ -249,9 +249,33 @@ export default function Home({ initialUser }) {
           ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
           @keyframes spin { to { transform: rotate(360deg); } }
           @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+          @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
           @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
           .cat-card:hover { background: rgba(48,54,61,0.6) !important; border-color: #30363d !important; }
           .cat-card { transition: all 0.15s ease; cursor: pointer; }
+          @media (max-width: 768px) {
+            .desktop-panel { display: none !important; }
+            .mobile-panel-overlay { position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); }
+            .mobile-panel-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; background: #0d1117; border-top: 1px solid #30363d; border-radius: 20px 20px 0 0; height: 88vh; overflow-y: auto; animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1); }
+            .mobile-panel-handle { width: 36px; height: 4px; background: #30363d; border-radius: 2px; margin: 12px auto 4px; }
+            .search-input-mobile { width: 100% !important; }
+            .stats-grid { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 6px !important; }
+            .filters-row-wrap { flex-wrap: wrap !important; }
+          }
+          @media (min-width: 769px) {
+            .mobile-panel-overlay, .mobile-panel-sheet { display: none !important; }
+            .header-username { display: inline !important; }
+          }
+          @media (max-width: 768px) {
+            .main-layout { display: block !important; }
+            .desktop-panel { display: none !important; }
+            .header-inner-wrap { padding: 8px 12px !important; }
+            .brand-name { font-size: 14px !important; }
+            .brand-sub { display: none; }
+            .stat-card { padding: 8px 6px !important; }
+            .filter-group-wrap { display: flex; overflow-x: auto; gap: 5px; padding-bottom: 2px; }
+            .filter-group-wrap::-webkit-scrollbar { display: none; }
+          }
           .panel-section { border-bottom: 1px solid #21262d; padding: 16px 20px; }
           .panel-section:last-child { border-bottom: none; }
           .data-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -263,7 +287,7 @@ export default function Home({ initialUser }) {
           .rec-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
         `}</style>
       </Head>
-      <div style={{ minHeight:'100vh', background:'#0a0c10', display: selectedCard ? 'grid' : 'block', gridTemplateColumns: selectedCard ? '1fr 420px' : undefined }}>
+      <div style={{ minHeight:'100vh', background:'#0a0c10', display: selectedCard ? 'grid' : 'block', gridTemplateColumns: selectedCard ? '1fr 420px' : undefined }} className="main-layout">
 
         {/* MAIN CONTENT */}
         <div style={{ minWidth: 0 }}>
@@ -280,7 +304,7 @@ export default function Home({ initialUser }) {
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                 {meta && <div style={s.updateBadge}>Updated {new Date(meta.updated).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>}
                 <img src={user.avatar} alt={user.username} style={s.avatar} />
-                <span style={s.username}>{user.username}</span>
+                <span style={{ ...s.username, display: 'none' }} className='header-username'>{user.username}</span>
                 <a href="/api/auth/logout" style={s.logoutBtn}>Logout</a>
               </div>
             </div>
@@ -425,7 +449,25 @@ export default function Home({ initialUser }) {
               </div>
             )}
 
-            <div style={s.footer}>
+            {/* Mobile panel - bottom sheet */}
+        {selectedCard && (
+          <>
+            <div className="mobile-panel-overlay" onClick={() => setSelectedCard(null)} />
+            <div className="mobile-panel-sheet">
+              <div className="mobile-panel-handle" />
+              <StockPanel
+                catalyst={selectedCard}
+                stockData={stockData[selectedCard.ticker?.toUpperCase()]}
+                loading={stockLoading && !stockData[selectedCard.ticker?.toUpperCase()]}
+                onClose={() => setSelectedCard(null)}
+                onToggleStar={toggleStar}
+                isStarred={myStars.includes(selectedCard.ticker?.toUpperCase())}
+              />
+            </div>
+          </>
+        )}
+
+        <div style={s.footer}>
               Data: CatalystAlert.io · ClinicalTrials.gov · SEC EDGAR · Yahoo Finance<br/>
               <span style={{ color:'#6e7681' }}>Not financial advice. ⭐ = starred tickers · Click any card for deep dive</span>
             </div>
@@ -434,7 +476,7 @@ export default function Home({ initialUser }) {
 
         {/* DEEP DIVE PANEL */}
         {selectedCard && (
-          <div ref={panelRef} style={s.panel}>
+          <div ref={panelRef} style={s.panel} className="desktop-panel">
             <StockPanel
               catalyst={selectedCard}
               stockData={activeSd}
@@ -1097,7 +1139,7 @@ const s = {
   username: { fontSize:13, fontWeight:600, color:'#e6edf3' },
   logoutBtn: { fontSize:12, color:'#8b949e', background:'transparent', border:'1px solid #30363d', padding:'4px 12px', borderRadius:6, cursor:'pointer', textDecoration:'none' },
   main: { maxWidth:1800, margin:'0 auto', padding:'20px' },
-  statsRow: { display:'flex', gap:10, marginBottom:14, flexWrap:'wrap' },
+  statsRow: { display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:14},
   statCard: { background:'#161b22', border:'1px solid #21262d', borderRadius:10, padding:'12px 16px', flex:'1 1 80px', textAlign:'center' },
   starsBar: { background:'#161b22', border:'1px solid #21262d', borderRadius:10, padding:'8px 14px', marginBottom:12, display:'flex', alignItems:'center', flexWrap:'wrap', gap:6 },
   starChip: { display:'inline-flex', alignItems:'center', gap:3, background:'rgba(245,158,11,0.12)', border:'1px solid rgba(245,158,11,0.25)', color:'#f59e0b', borderRadius:20, padding:'2px 8px', fontSize:11, fontWeight:700 },
@@ -1108,8 +1150,8 @@ const s = {
   addStarBtn: { background:'transparent', border:'1px dashed rgba(245,158,11,0.3)', color:'#f59e0b', borderRadius:20, padding:'2px 10px', fontSize:11, cursor:'pointer', fontWeight:600 },
   pastBanner: { background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:8, padding:'8px 14px', marginBottom:12, color:'#818cf8', fontSize:13 },
   backBtn: { background:'none', border:'none', color:'#818cf8', cursor:'pointer', fontSize:13, textDecoration:'underline' },
-  filtersRow: { display:'flex', gap:8, marginBottom:10, flexWrap:'wrap', alignItems:'center' },
-  searchInput: { background:'#161b22', border:'1px solid #21262d', borderRadius:8, padding:'8px 12px', color:'#e6edf3', fontSize:13, width:240, outline:'none' },
+  filtersRow: { display:'flex', gap:8, marginBottom:10, flexWrap:'wrap', alignItems:'center', width:'100%' },
+  searchInput: { background:'#161b22', border:'1px solid #21262d', borderRadius:8, padding:'8px 12px', color:'#e6edf3', fontSize:13, width:'min(240px, 100%)', outline:'none' },
   filterGroup: { display:'flex', gap:5, flexWrap:'wrap' },
   filterBtn: { background:'#161b22', border:'1px solid #21262d', borderRadius:6, padding:'6px 12px', color:'#8b949e', fontSize:12, cursor:'pointer' },
   filterBtnActive: { background:'rgba(99,102,241,0.15)', border:'1px solid #6366f1', borderRadius:6, padding:'6px 12px', color:'#818cf8', fontSize:12, cursor:'pointer', fontWeight:600 },
