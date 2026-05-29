@@ -1043,17 +1043,45 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
           )}
 
           {/* Key catalyst */}
+          {/* Key Catalyst */}
           {sd.keyCatalyst && (
             <div className="panel-section">
               <div style={s.sectionTitle}>🎯 Key Catalyst</div>
               <div style={{ fontSize:13, color:'#c9d1d9', lineHeight:1.6 }}>{sd.keyCatalyst}</div>
-              {sd.secLink && (
-                <div style={{ marginTop:10 }}>
-                  <a href={sd.secLink} target="_blank" rel="noreferrer" className="sec-badge">
-                    🏛️ View SEC Filing ↗
-                  </a>
+            </div>
+          )}
+
+          {/* AI-found catalysts from SEC filings */}
+          {sd.catalogCatalysts?.length > 0 && (
+            <div className="panel-section">
+              <div style={s.sectionTitle}>🔍 Catalysts Found in SEC Filings <span style={{ fontSize:10, color:'#4ade80', marginLeft:6 }}>AI-detected</span></div>
+              {sd.catalogCatalysts.map((c, i) => (
+                <div key={i} style={{ marginBottom:8, padding:'8px 10px', background:'rgba(99,102,241,0.06)', borderRadius:6, border:'1px solid rgba(99,102,241,0.15)' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
+                    {c.date && <span style={{ fontSize:11, color:'#6e7681' }}>{c.date}</span>}
+                    {c.type && <span style={{ ...s.typeBadge, background: EVENT_TYPES[c.type]?.bg||'rgba(99,102,241,0.15)', color: EVENT_TYPES[c.type]?.color||'#818cf8', fontSize:10 }}>{EVENT_TYPES[c.type]?.icon||'📋'} {EVENT_TYPES[c.type]?.label||c.type}</span>}
+                  </div>
+                  <div style={{ fontSize:12, color:'#c9d1d9' }}>{c.description}</div>
                 </div>
-              )}
+              ))}
+            </div>
+          )}
+
+          {/* SEC Filings */}
+          {sd.secFilings?.length > 0 && (
+            <div className="panel-section">
+              <div style={s.sectionTitle}>🏛️ Recent SEC Filings</div>
+              {sd.secFilings.slice(0,5).map((f, i) => (
+                <div key={i} className="data-row" style={{ marginBottom:8 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:11, color:'#6e7681' }}>{f.date} · <span style={{ color:'#818cf8' }}>{f.type}</span></div>
+                    <div style={{ fontSize:12, color:'#c9d1d9', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.description}</div>
+                  </div>
+                  {f.url && (
+                    <a href={f.url} target="_blank" rel="noreferrer" className="sec-badge" style={{ marginLeft:8, flexShrink:0 }}>↗</a>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -1065,7 +1093,7 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
       )}
 
       <div style={{ padding:'12px 20px', borderTop:'1px solid #21262d', fontSize:11, color:'#6e7681', textAlign:'center' }}>
-        Data: Yahoo Finance · SEC EDGAR · Not financial advice
+        Data: FMP · SEC EDGAR · AI-researched · Not financial advice
       </div>
     </div>
   )

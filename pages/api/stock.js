@@ -113,16 +113,29 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
+          max_tokens: 1200,
           tools: [{ type: 'web_search_20250305', name: 'web_search' }],
           messages: [{
             role: 'user',
-            content: `Search for ${t} stock and return ONLY JSON, no markdown:
+            content: `Search SEC EDGAR, Finviz, Barchart, and recent news for ${t} stock. Find ALL of the following and return ONLY a JSON object, no markdown, no extra text.
+
+Search specifically for:
+1. SEC EDGAR: search https://efts.sec.gov/LATEST/search-index?q=%22${t}%22&forms=8-K for recent 8-K filings - get the direct filing URLs
+2. Short float % from Finviz or Barchart
+3. IV Rank from Barchart
+4. EPS whisper number (different from consensus) from EarningsWhispers
+5. Capital raise details from most recent 8-K (amount, type, price per share, investors)
+6. Warrant details from 8-K filings
+7. Prescription data if commercial pharma (TRx, NRx, trend)
+8. Key catalyst one-liner
+
+Return ONLY this JSON (null for anything not found):
 {
   "epsWhisper": null,
   "analystCount": null,
   "recommendation": null,
   "shortFloat": null,
+  "shortFloatSource": null,
   "ivRank": null,
   "lastRaiseAmount": null,
   "lastRaiseType": null,
@@ -134,9 +147,20 @@ export default async function handler(req, res) {
   "warrantExpiry": null,
   "warrantShares": null,
   "dilutionNote": null,
+  "rxDrugName": null,
+  "rxIndication": null,
+  "rxTRx": null,
+  "rxNRx": null,
+  "rxTrend": null,
+  "rxMarketShare": null,
+  "rxEarningsImplication": null,
   "keyCatalyst": null,
-  "secLink": null
-}`
+  "secFilings": [],
+  "catalogCatalysts": []
+}
+
+For secFilings return array of: {"date": "2026-01-15", "type": "8-K", "description": "...", "url": "https://..."}
+For catalogCatalysts return array of NEW catalysts found in SEC filings not already known: {"date": "2026-08-01", "type": "pdufa|phase3|nda|earnings|readout", "description": "..."}`
           }]
         })
       })
@@ -242,6 +266,16 @@ export default async function handler(req, res) {
       dilutionNote:          aiData.dilutionNote           ?? null,
       keyCatalyst:           aiData.keyCatalyst            ?? null,
       secLink:               aiData.secLink                ?? null,
+      secFilings:            aiData.secFilings             ?? [],
+      catalogCatalysts:      aiData.catalogCatalysts       ?? [],
+      rxDrugName:            aiData.rxDrugName             ?? null,
+      rxIndication:          aiData.rxIndication           ?? null,
+      rxTRx:                 aiData.rxTRx                  ?? null,
+      rxNRx:                 aiData.rxNRx                  ?? null,
+      rxTrend:               aiData.rxTrend                ?? null,
+      rxMarketShare:         aiData.rxMarketShare          ?? null,
+      rxEarningsImplication: aiData.rxEarningsImplication  ?? null,
+      shortFloatSource:      aiData.shortFloatSource       ?? null,
 
       updatedAt: new Date().toISOString(),
     })
