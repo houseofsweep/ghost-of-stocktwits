@@ -129,7 +129,7 @@ export default async function handler(req, res) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1200,
           tools: [{ type: 'web_search_20250305', name: 'web_search' }],
           messages: [{
@@ -195,7 +195,7 @@ For catalogCatalysts return array of NEW catalysts found in SEC filings not alre
             method:'POST',
             headers:{ 'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01' },
             body: JSON.stringify({
-              model:'claude-sonnet-4-5', max_tokens:800,
+              model:'claude-sonnet-4-6', max_tokens:800,
               tools:[{type:'web_search_20250305',name:'web_search'}],
               messages:[
                 {role:'user',content:`Search ${t} stock data, return ONLY JSON with: epsWhisper, analystCount, recommendation, shortFloat, ivRank, lastRaiseAmount, lastRaiseType, lastRaiseDate, lastRaisePricePerShare, raiseVsToday, leadInvestors, warrantStrike, warrantExpiry, warrantShares, dilutionNote, keyCatalyst, secLink`},
