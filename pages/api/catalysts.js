@@ -1,5 +1,35 @@
 const WATCHLIST = ['NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ','PTGX','RYTM','RCKT','SAGE','ALNY','VRTX','SRPT','BMRN','FOLD','KRYS','RARE','BPMC','IONS','ACAD','SNDX','VERA','PRTA','NUVL','VRDN','SRRK','LRMR','SMMT','BEAM','NTLA','CRSP','EDIT','ARWR','RCUS','FULC','PRAX','KYMR','ARVN','KURA','MRTX','REGN','INO']
 
+// Biotech/Pharma tickers to include in earnings feed
+// Add any non-biotech custom tickers here too (e.g. AUR, AMRZ)
+const EARNINGS_WHITELIST = new Set([
+  // Your watchlist
+  'NUVB','IDYA','SPRB','VSTM','RVMD','ATAI','OTLK','AMRZ','PTGX','RYTM','RCKT','SAGE',
+  'ALNY','VRTX','SRPT','BMRN','FOLD','KRYS','RARE','BPMC','IONS','ACAD','SNDX','VERA',
+  'PRTA','NUVL','VRDN','SRRK','LRMR','SMMT','BEAM','NTLA','CRSP','EDIT','ARWR','RCUS',
+  'FULC','PRAX','KYMR','ARVN','KURA','MRTX','REGN','INO',
+  // Major biotech/pharma
+  'GILD','BIIB','AMGN','ABBV','BMY','LLY','MRK','PFE','AZN','NVS','NVO','RHHBY',
+  'MRNA','BNTX','NVAX','SGEN','INCY','EXEL','HZNP','JAZZ','UTHR','ALKS','PCRX',
+  'ITCI','ACAD','SAGE','INVA','MNKD','DNLI','BLUE','FATE','EDIT','NTLA','BEAM',
+  'ARCT','VERV','CRBU','GRPH','PRIME','TALS','SANA','ALLO','NKTR','CLDX','IMVT',
+  'RCUS','AGEN','SURF','IMMU','SEER','LYEL','NKTR','ADCT','MGNX','IMGN','AGIO',
+  'FORMA','SYRS','PMVP','KRTX','ETNB','PRME','TPTX','ERAS','AKSO','PLRX','IMTX',
+  'HOOK','KYMR','MRUS','ARVN','KDNY','PTGX','CGEM','DBTX','XNCR','DRNA','QURE',
+  'ANAB','CERE','RLAY','MIRM','ALDX','OVID','CRVS','ITOS','RUBY','AUPH','ATRA',
+  'BLFS','CCCC','ABUS','LPTX','AGEN','CTIC','EPZM','HALO','MDGL','OMER','PBYI',
+  'PCVX','PHAT','RDUS','REPL','RGNX','RLMD','SBOW','SDGR','SLDB','TGTX','THRX',
+  'TTOO','TVTX','VCEL','VNDA','VRCA','VRPX','ZYME','ZYNX','DVAX','FLGT','GOSS',
+  'ARDX','ARQT','AVDL','AVXL','AXSM','BHVN','BOLT','BPMC','BTAI','RVNC','STOK',
+  'CTIC','CYRX','DXCM','ETNB','EVLO','FIXX','GTHX','GWPH','HALO','HRMY','IOVA',
+  'IRON','ITCI','JANX','KDNY','KNSA','LGND','LNTH','MASS','MDGL','MERUS','MGNX',
+  'MIST','MORF','MREO','MRSN','MRTX','MYOV','NBTX','NKTR','NRIX','NVAX','NVBO',
+  'NVCR','OGEN','PBYI','PCVX','PHAT','PLRX','PMVP','PRME','PTCT','PTGX','QURE',
+  'RAPT','RDFN','RDUS','REPL','RGNX','RLMD','RLYB','RMTI','RNAZ','RUBY','RXDX',
+  // Custom non-biotech adds
+  'AUR','PURR','DFDV','ABVE','AMRZ',
+])
+
 const ALL_CATALYSTS = [
   {date:'2026-05-28',ticker:'NVS',drug:'Ribociclib',catalyst:'Ribociclib Phase 3 Est. Readout',company:'',condition:'Early Breast Cancer',nctId:'NCT03701334',type:'phase3',source:'CatalystAlert'},
   {date:'2026-05-28',ticker:'AZNCF',drug:'Benralizumab',catalyst:'Benralizumab Phase 3 Est. Readout',company:'',condition:'Severe Eosinophilic Asthma',nctId:'NCT06465485',type:'phase3',source:'CatalystAlert'},
@@ -545,7 +575,7 @@ export default async function handler(req, res) {
       const data = await r.json()
       if (Array.isArray(data)) {
         liveEarnings = data
-          .filter(e => e.symbol && e.date)
+          .filter(e => e.symbol && e.date && EARNINGS_WHITELIST.has(e.symbol.toUpperCase()))
           .map(e => {
             const epsStr = e.epsEstimated != null ? `EPS est: ${e.epsEstimated >= 0?'+':''}${e.epsEstimated}` : ''
             const revStr = e.revenueEstimated != null ? `Rev est: $${(e.revenueEstimated/1e6).toFixed(0)}M` : ''

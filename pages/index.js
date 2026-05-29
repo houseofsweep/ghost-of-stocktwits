@@ -631,53 +631,101 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
     return '#ef4444'
   }
 
+  const hasData = sd && Object.keys(sd).length > 2
+
   return (
     <div style={{ ...s.panelInner, animation:'slideIn 0.2s ease' }}>
-      {/* Panel header */}
-      <div style={s.panelHeader}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <button onClick={() => onToggleStar(catalyst.ticker)}
-            style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, opacity: isStarred?1:0.3, transition:'opacity 0.15s' }}>⭐</button>
-          <div>
-            <div style={{ fontSize:20, fontWeight:900, color:'#e6edf3' }}>${catalyst.ticker}</div>
-            <div style={{ fontSize:12, color:'#8b949e' }}>{sd?.companyName || '—'}</div>
+
+      {/* ── HEADER ── */}
+      <div style={{ padding:'16px 20px', borderBottom:'1px solid #21262d', background:'#161b22', position:'sticky', top:0, zIndex:10 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <button onClick={() => onToggleStar(catalyst.ticker)}
+              style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, opacity: isStarred?1:0.25, transition:'all 0.15s', padding:0 }}>⭐</button>
+            <div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:22, fontWeight:900, color:'#e6edf3' }}>${catalyst.ticker}</span>
+                {sd?.sector && (
+                  <span style={{ fontSize:10, fontWeight:600, background:'rgba(99,102,241,0.15)', color:'#818cf8', padding:'2px 8px', borderRadius:20, border:'1px solid rgba(99,102,241,0.25)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                    {sd.sector}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize:12, color:'#6e7681', marginTop:2 }}>{sd?.companyName || catalyst.company || '—'}</div>
+            </div>
           </div>
-          {sd?.sector && <span style={{ fontSize:11, background:'rgba(99,102,241,0.15)', color:'#818cf8', padding:'2px 8px', borderRadius:20, border:'1px solid rgba(99,102,241,0.3)' }}>{sd.sector}</span>}
+          <button onClick={onClose}
+            style={{ background:'rgba(110,118,129,0.1)', border:'1px solid #30363d', borderRadius:6, cursor:'pointer', color:'#8b949e', fontSize:14, padding:'4px 10px', lineHeight:1 }}>✕</button>
         </div>
-        <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#6e7681', fontSize:20, padding:'4px 8px' }}>×</button>
+
+        {/* Price bar */}
+        {sd?.price && (
+          <div style={{ display:'flex', alignItems:'baseline', gap:12, marginTop:14, paddingTop:14, borderTop:'1px solid #21262d' }}>
+            <span style={{ fontSize:32, fontWeight:900, color:'#e6edf3', letterSpacing:'-0.02em' }}>${sd.price.toFixed(2)}</span>
+            {sd.marketCap && (
+              <span style={{ fontSize:13, color:'#6e7681' }}>
+                MCap: <span style={{ color:'#8b949e', fontWeight:600 }}>{sd.marketCap}</span>
+              </span>
+            )}
+            {sd.beta && (
+              <span style={{ fontSize:13, color:'#6e7681' }}>
+                β <span style={{ color:'#8b949e', fontWeight:600 }}>{parseFloat(sd.beta).toFixed(2)}</span>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* 52w range bar */}
+        {sd?.week52Low && sd?.week52High && sd?.price && (
+          <div style={{ marginTop:10 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'#6e7681', marginBottom:4 }}>
+              <span>52W Low ${sd.week52Low}</span>
+              <span>52W High ${sd.week52High}</span>
+            </div>
+            <div style={{ position:'relative', height:4, background:'#21262d', borderRadius:2 }}>
+              <div style={{
+                position:'absolute', left:0, top:0, height:'100%', borderRadius:2,
+                width:`${Math.min(100,Math.max(0,((sd.price - sd.week52Low)/(sd.week52High - sd.week52Low))*100))}%`,
+                background:'linear-gradient(90deg, #ef4444, #f59e0b, #22c55e)'
+              }} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Price + catalyst badge */}
-      <div className="panel-section" style={{ background:'rgba(239,68,68,0.04)', borderBottom:'1px solid rgba(239,68,68,0.15)' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
-          <div>
-            {sd?.price && <div style={{ fontSize:28, fontWeight:900, color:'#e6edf3' }}>${sd.price.toFixed(2)}</div>}
-            {sd?.marketCap && <div style={{ fontSize:13, color:'#8b949e', marginTop:2 }}>Market Cap: <span style={{ color:'#e6edf3', fontWeight:600 }}>{sd.marketCap}</span></div>}
-          </div>
-          <span style={{ ...s.typeBadge, background:typeDef.bg, color:typeDef.color, fontSize:12, padding:'4px 12px' }}>
+      {/* ── CATALYST CONTEXT ── */}
+      <div style={{ padding:'12px 20px', borderBottom:'1px solid #21262d', background:'rgba(239,68,68,0.03)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+          <span style={{ ...s.typeBadge, background:typeDef.bg, color:typeDef.color, fontSize:11 }}>
             {typeDef.icon} {typeDef.label}
           </span>
+          <span style={{ fontSize:11, color:'#6e7681' }}>
+            {catalyst.daysOut === 0 ? '🔥 Today' : `${catalyst.daysOut}d away`}
+          </span>
         </div>
-        <div style={{ fontSize:13, color:'#c9d1d9', fontWeight:600, marginBottom:4 }}>{catalyst.catalyst || catalyst.drug}</div>
-        {catalyst.condition && <div style={{ fontSize:12, color:'#6e7681' }}>{catalyst.condition}</div>}
-        <div style={{ display:'flex', gap:8, marginTop:10 }}>
+        <div style={{ fontSize:13, fontWeight:600, color:'#c9d1d9', lineHeight:1.4 }}>
+          {catalyst.catalyst || catalyst.drug}
+        </div>
+        {catalyst.condition && (
+          <div style={{ fontSize:11, color:'#6e7681', marginTop:4 }}>{catalyst.condition}</div>
+        )}
+        <div style={{ display:'flex', gap:6, marginTop:8 }}>
           {catalyst.nctId && (
-            <a href={`https://clinicaltrials.gov/study/${catalyst.nctId}`} target="_blank" rel="noreferrer" className="sec-badge">
-              📄 ClinicalTrials.gov
-            </a>
-          )}
-          {catalyst.secUrl && (
-            <a href={catalyst.secUrl} target="_blank" rel="noreferrer" className="sec-badge">
-              🏛️ SEC 8-K ↗
+            <a href={`https://clinicaltrials.gov/study/${catalyst.nctId}`} target="_blank" rel="noreferrer" className="sec-badge" onClick={e => e.stopPropagation()}>
+              📄 ClinicalTrials
             </a>
           )}
         </div>
       </div>
 
+
       {loading ? (
-        <div style={{ padding:'48px', display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
+        <div style={{ padding:'60px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:14 }}>
           <div style={s.spinner} />
-          <div style={{ color:'#8b949e', fontSize:13 }}>Loading stock data...</div>
+          <div style={{ color:'#8b949e', fontSize:13, textAlign:'center' }}>
+            Searching for {catalyst.ticker} data...
+            <div style={{ fontSize:11, color:'#6e7681', marginTop:4 }}>This takes ~5 seconds</div>
+          </div>
         </div>
       ) : sd ? (
         <div style={{ overflowY:'auto', flex:1 }}>
