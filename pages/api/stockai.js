@@ -20,9 +20,10 @@ export default async function handler(req, res) {
           role: 'user',
           content: `Today is May 29, 2026. Search for the following about ${t} stock. USE ONLY DATA FROM 2025 OR 2026:
 
-Search 1: "${t} SEC 8-K 2026 warrant offering site:sec.gov OR site:globenewswire.com OR site:businesswire.com"
-Search 2: "${t} short float May 2026"  
-Search 3: "${t} warrant strike price 2026"
+Search 1: Fetch this URL directly: https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${t}&type=8-K&dateb=&owner=include&count=10&search_text= to get the most recent 8-K filings
+Search 2: "${t} site:sec.gov 8-K 2026"
+Search 3: "${t} short float 2026"
+Search 4: "${t} warrant strike price 2026 offering"
 
 Return ONLY this JSON with real 2025-2026 values (null if not found in 2025-2026):
 {"shortFloat":null,"ivRank":null,"analystCount":null,"recommendation":null,"epsWhisper":null,"lastRaiseAmount":null,"lastRaiseType":null,"lastRaiseDate":null,"lastRaisePricePerShare":null,"raiseVsToday":null,"leadInvestors":null,"warrantStrike":null,"warrantExpiry":null,"warrantShares":null,"dilutionNote":null,"keyCatalyst":null,"rxDrugName":null,"rxIndication":null,"rxTRx":null,"rxNRx":null,"rxTrend":null,"rxMarketShare":null,"rxEarningsImplication":null,"secFilings":[],"catalogCatalysts":[],"sharesOutstanding":null,"fullyDilutedShares":null,"fdmc":null,"fdmcNote":null}`
