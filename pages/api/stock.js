@@ -25,11 +25,21 @@ async function getArr(path) {
 
 function fmt(n) {
   if (n == null) return null
-  const a = Math.abs(n), s = n < 0 ? '-' : ''
+  // FMP sometimes returns values in full dollars, sometimes scaled
+  // Normalize: if abs value > 1e11 for a single company metric, likely needs /1000
+  let v = n
+  if (Math.abs(v) > 5e11) v = v / 1000  // normalize trillion-scale to billions
+  const a = Math.abs(v), s = v < 0 ? '-' : ''
   if (a >= 1e9) return `${s}$${(a/1e9).toFixed(1)}B`
   if (a >= 1e6) return `${s}$${(a/1e6).toFixed(1)}M`
   if (a >= 1e3) return `${s}$${(a/1e3).toFixed(0)}K`
   return `${s}$${a.toFixed(2)}`
+}
+
+function normalizeRaw(n) {
+  if (n == null) return null
+  if (Math.abs(n) > 5e11) return n / 1000
+  return n
 }
 
 function fmtCap(n) {
@@ -71,22 +81,22 @@ export default async function handler(req, res) {
 
     // Balance sheet — cash
     const latestBS   = bs[0] || null
-    const cashRaw    = latestBS?.cashAndCashEquivalents ?? latestBS?.cashAndShortTermInvestments ?? null
-    const totalDebt  = latestBS?.totalDebt ?? null
+    const cashRaw    = normalizeRaw(latestBS?.cashAndCashEquivalents ?? latestBS?.cashAndShortTermInvestments ?? null)
+    const totalDebt  = normalizeRaw(latestBS?.totalDebt ?? null)
 
     // Cash flow — burn rate
     const latestCF   = cf[0] || null
     const prevCF     = cf[1] || null
     // Use operating cash flow for burn — negative = cash burn
-    const opCF       = latestCF?.operatingCashFlow ?? null
-    const capEx      = latestCF?.capitalExpenditure ?? 0
+    const opCF       = normalizeRaw(latestCF?.operatingCashFlow ?? null)
+    const capEx      = normalizeRaw(latestCF?.capitalExpenditure ?? 0)
     // Quarterly burn = abs(operating CF) if negative
     const burnRaw    = opCF && opCF < 0 ? Math.abs(opCF) : null
     const runway     = cashRaw && burnRaw ? cashRaw / burnRaw : null
     const runwayMos  = runway ? Math.round(runway * 3) : null
 
     // Free cash flow
-    const fcf        = latestCF?.freeCashFlow ?? null
+    const fcf        = normalizeRaw(latestCF?.freeCashFlow ?? null)
 
     // Earnings from calendar
     const nextEarnings = earningsCal.find(e => e.symbol === t && new Date(e.date+'T00:00:00') >= today)

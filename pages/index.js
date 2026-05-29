@@ -927,7 +927,7 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
           {/* Capital raise */}
           {(sd.lastRaiseAmount || sd.lastRaiseType || sd.warrantStrike) && (
             <div className="panel-section">
-              <div style={s.sectionTitle}>💸 Last Capital Raise <span style={{ fontSize:10, color:'#4ade80', marginLeft:6 }}>AI-researched</span></div>
+              <div style={s.sectionTitle}>💸 Last Capital Raise <span style={{ fontSize:10, color:'#4ade80', marginLeft:6 }}>AI · SEC 8-K</span></div>
               {sd.lastRaiseAmount && (
                 <div className="data-row">
                   <span className="data-label">Amount Raised</span>
@@ -966,15 +966,22 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
                 </div>
               )}
               {sd.warrantStrike && (
-                <div style={{ marginTop:10, padding:'10px 12px', background:'rgba(245,158,11,0.07)', borderRadius:8, border:'1px solid rgba(245,158,11,0.15)' }}>
-                  <div style={{ fontSize:12, color:'#f59e0b', fontWeight:700, marginBottom:6 }}>⚡ Warrants</div>
+                <div style={{ marginTop:12, padding:'12px 14px', background:'rgba(245,158,11,0.08)', borderRadius:8, border:'1px solid rgba(245,158,11,0.25)' }}>
+                  <div style={{ fontSize:13, color:'#f59e0b', fontWeight:800, marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
+                    ⚡ Warrants
+                    {sd.price && sd.warrantStrike && (
+                      <span style={{ fontSize:11, fontWeight:600, color: parseFloat(sd.price) > parseFloat(sd.warrantStrike) ? '#4ade80' : '#ef4444', marginLeft:'auto' }}>
+                        {parseFloat(sd.price) > parseFloat(sd.warrantStrike) ? '▲ In The Money' : '▼ Out of Money'}
+                      </span>
+                    )}
+                  </div>
                   <div className="data-row">
                     <span className="data-label">Strike Price</span>
-                    <span className="data-value">${sd.warrantStrike}</span>
+                    <span className="data-value" style={{ fontSize:16, color:'#f59e0b', fontWeight:800 }}>${sd.warrantStrike}</span>
                   </div>
                   {sd.warrantExpiry && (
                     <div className="data-row">
-                      <span className="data-label">Expiry</span>
+                      <span className="data-label">Expiry Date</span>
                       <span className="data-value">{sd.warrantExpiry}</span>
                     </div>
                   )}
@@ -984,9 +991,14 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
                       <span className="data-value">{sd.warrantShares}</span>
                     </div>
                   )}
+                  {sd.dilutionNote && (
+                    <div style={{ marginTop:8, fontSize:11, color:'#f59e0b', opacity:0.8, lineHeight:1.5 }}>
+                      ⚠️ {sd.dilutionNote}
+                    </div>
+                  )}
                 </div>
               )}
-              {sd.dilutionNote && (
+              {!sd.warrantStrike && sd.dilutionNote && (
                 <div style={{ marginTop:8, fontSize:12, color:'#8b949e', fontStyle:'italic', lineHeight:1.5 }}>
                   ⚠️ {sd.dilutionNote}
                 </div>
