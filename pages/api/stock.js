@@ -77,7 +77,10 @@ export default async function handler(req, res) {
     // Cash flow — burn rate
     const latestCF   = cf[0] || null
     const prevCF     = cf[1] || null
+    // Use operating cash flow for burn — negative = cash burn
     const opCF       = latestCF?.operatingCashFlow ?? null
+    const capEx      = latestCF?.capitalExpenditure ?? 0
+    // Quarterly burn = abs(operating CF) if negative
     const burnRaw    = opCF && opCF < 0 ? Math.abs(opCF) : null
     const runway     = cashRaw && burnRaw ? cashRaw / burnRaw : null
     const runwayMos  = runway ? Math.round(runway * 3) : null
