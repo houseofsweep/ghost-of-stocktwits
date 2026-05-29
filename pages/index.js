@@ -698,7 +698,16 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
                 <div className="data-row">
                   <span className="data-label">EPS Estimate</span>
                   <span className="data-value" style={{ color: sd.epsEstimate >= 0 ? '#4ade80' : '#ef4444' }}>
-                    {sd.epsEstimate >= 0 ? '+' : ''}{sd.epsEstimate?.toFixed(2)}
+                    {sd.epsEstimate >= 0 ? '+' : ''}{sd.epsEstimate}
+                  </span>
+                </div>
+              )}
+              {sd.epsWhisper != null && sd.epsWhisper !== sd.epsEstimate && (
+                <div className="data-row">
+                  <span className="data-label">EPS Whisper</span>
+                  <span className="data-value" style={{ color:'#f59e0b', fontWeight:700 }}>
+                    {sd.epsWhisper >= 0 ? '+' : ''}{sd.epsWhisper}
+                    <span style={{ fontSize:10, color:'#6e7681', marginLeft:4 }}>whisper</span>
                   </span>
                 </div>
               )}
@@ -793,110 +802,167 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
           )}
 
           {/* Short float & options */}
-          {sd.shortFloat && (
+          {(sd.shortFloat || sd.ivRank || sd.week52High) && (
             <div className="panel-section">
               <div style={s.sectionTitle}>📉 Short / Options</div>
-              <div className="data-row">
-                <span className="data-label">Short Float</span>
-                <span className="data-value" style={{ color: shortColor(sd.shortFloat) }}>{sd.shortFloat}</span>
-              </div>
-              <div className="data-row">
-                <span className="data-label">52-Week Range</span>
-                <span className="data-value" style={{ fontSize:12 }}>
-                  ${sd.week52Low?.toFixed(2)||'—'} – ${sd.week52High?.toFixed(2)||'—'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* SEC / Capital raise data */}
-          {sd.secData && Object.values(sd.secData).some(v => v) && (
-            <div className="panel-section">
-              <div style={s.sectionTitle}>🏛️ Last Capital Raise <span style={{ fontSize:10, color:'#4ade80', marginLeft:6 }}>AI-detected from SEC 8-K</span></div>
-              {sd.secData.lastRaiseAmount && (
+              {sd.shortFloat && (
                 <div className="data-row">
-                  <span className="data-label">Amount Raised</span>
-                  <span className="data-value">{sd.secData.lastRaiseAmount}</span>
+                  <span className="data-label">Short Float</span>
+                  <span className="data-value" style={{ color: shortColor(sd.shortFloat) }}>{sd.shortFloat}</span>
                 </div>
               )}
-              {sd.secData.lastRaiseType && (
+              {sd.ivRank != null && (
                 <div className="data-row">
-                  <span className="data-label">Raise Type</span>
-                  <span className="data-value">{sd.secData.lastRaiseType}</span>
-                </div>
-              )}
-              {sd.secData.lastRaiseDate && (
-                <div className="data-row">
-                  <span className="data-label">Date</span>
-                  <span className="data-value">{sd.secData.lastRaiseDate}</span>
-                </div>
-              )}
-              {sd.secData.lastRaisePricePerShare && sd.price && (
-                <div className="data-row">
-                  <span className="data-label">Raise Price vs Today</span>
-                  <span className="data-value">
-                    ${sd.secData.lastRaisePricePerShare}
-                    <span style={{ marginLeft:6, color: sd.price > parseFloat(sd.secData.lastRaisePricePerShare) ? '#4ade80' : '#ef4444', fontWeight:700 }}>
-                      {sd.price > parseFloat(sd.secData.lastRaisePricePerShare) ? '▲ Above' : '▼ Below'}
+                  <span className="data-label">IV Rank</span>
+                  <span className="data-value" style={{ color: ivColor(sd.ivRank) }}>
+                    {sd.ivRank}
+                    <span style={{ fontSize:10, color:'#6e7681', marginLeft:4 }}>
+                      {sd.ivRank < 30 ? '● Low' : sd.ivRank < 60 ? '● Elevated' : '● High'}
                     </span>
                   </span>
                 </div>
               )}
-              {sd.secData.leadInvestors && (
+              {(sd.week52Low || sd.week52High) && (
                 <div className="data-row">
-                  <span className="data-label">Lead Investors</span>
-                  <span className="data-value" style={{ fontSize:11, maxWidth:200, textAlign:'right' }}>{sd.secData.leadInvestors}</span>
-                </div>
-              )}
-              {sd.secData.warrantStrike && (
-                <div style={{ marginTop:10, padding:'10px 12px', background:'rgba(245,158,11,0.07)', borderRadius:8, border:'1px solid rgba(245,158,11,0.15)' }}>
-                  <div style={{ fontSize:12, color:'#f59e0b', fontWeight:700, marginBottom:6 }}>⚡ Warrants</div>
-                  <div className="data-row">
-                    <span className="data-label">Strike Price</span>
-                    <span className="data-value">${sd.secData.warrantStrike}</span>
-                  </div>
-                  {sd.secData.warrantExpiry && (
-                    <div className="data-row">
-                      <span className="data-label">Expiry</span>
-                      <span className="data-value">{sd.secData.warrantExpiry}</span>
-                    </div>
-                  )}
-                  {sd.secData.warrantShares && (
-                    <div className="data-row">
-                      <span className="data-label">Shares Covered</span>
-                      <span className="data-value">{sd.secData.warrantShares}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {sd.secData.dilutionNote && (
-                <div style={{ marginTop:8, fontSize:12, color:'#8b949e', fontStyle:'italic', lineHeight:1.5 }}>
-                  ⚠️ {sd.secData.dilutionNote}
-                </div>
-              )}
-              {sd.secData.keyCatalyst && (
-                <div style={{ marginTop:10, padding:'10px 12px', background:'rgba(99,102,241,0.08)', borderRadius:8, border:'1px solid rgba(99,102,241,0.2)' }}>
-                  <div style={{ fontSize:11, color:'#818cf8', fontWeight:700, marginBottom:4 }}>🎯 Key Catalyst</div>
-                  <div style={{ fontSize:12, color:'#c9d1d9', lineHeight:1.5 }}>{sd.secData.keyCatalyst}</div>
-                </div>
-              )}
-              {sd.secData.secLink && (
-                <div style={{ marginTop:10 }}>
-                  <a href={sd.secData.secLink} target="_blank" rel="noreferrer" className="sec-badge">
-                    🏛️ View SEC Filing ↗
-                  </a>
+                  <span className="data-label">52-Week Range</span>
+                  <span className="data-value" style={{ fontSize:12 }}>
+                    ${sd.week52Low||'—'} – ${sd.week52High||'—'}
+                  </span>
                 </div>
               )}
             </div>
           )}
 
-          {/* 52-week + volume if no other sections */}
-          {sd.avgVolume && (
+          {/* Capital raise */}
+          {(sd.lastRaiseAmount || sd.lastRaiseType || sd.warrantStrike) && (
             <div className="panel-section">
-              <div className="data-row">
-                <span className="data-label">Avg Daily Volume</span>
-                <span className="data-value">{(sd.avgVolume/1e6).toFixed(1)}M</span>
-              </div>
+              <div style={s.sectionTitle}>💸 Last Capital Raise <span style={{ fontSize:10, color:'#4ade80', marginLeft:6 }}>AI-researched</span></div>
+              {sd.lastRaiseAmount && (
+                <div className="data-row">
+                  <span className="data-label">Amount Raised</span>
+                  <span className="data-value">{sd.lastRaiseAmount}</span>
+                </div>
+              )}
+              {sd.lastRaiseType && (
+                <div className="data-row">
+                  <span className="data-label">Type</span>
+                  <span className="data-value">{sd.lastRaiseType}</span>
+                </div>
+              )}
+              {sd.lastRaiseDate && (
+                <div className="data-row">
+                  <span className="data-label">Date</span>
+                  <span className="data-value">{sd.lastRaiseDate}</span>
+                </div>
+              )}
+              {sd.lastRaisePricePerShare && (
+                <div className="data-row">
+                  <span className="data-label">Raise Price vs Today</span>
+                  <span className="data-value">
+                    ${sd.lastRaisePricePerShare}
+                    {sd.raiseVsToday && (
+                      <span style={{ marginLeft:6, color: sd.raiseVsToday === 'above' ? '#4ade80' : '#ef4444', fontWeight:700 }}>
+                        {sd.raiseVsToday === 'above' ? '▲ Above' : '▼ Below'}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {sd.leadInvestors && (
+                <div className="data-row">
+                  <span className="data-label">Lead Investors</span>
+                  <span className="data-value" style={{ fontSize:11, maxWidth:200, textAlign:'right' }}>{sd.leadInvestors}</span>
+                </div>
+              )}
+              {sd.warrantStrike && (
+                <div style={{ marginTop:10, padding:'10px 12px', background:'rgba(245,158,11,0.07)', borderRadius:8, border:'1px solid rgba(245,158,11,0.15)' }}>
+                  <div style={{ fontSize:12, color:'#f59e0b', fontWeight:700, marginBottom:6 }}>⚡ Warrants</div>
+                  <div className="data-row">
+                    <span className="data-label">Strike Price</span>
+                    <span className="data-value">${sd.warrantStrike}</span>
+                  </div>
+                  {sd.warrantExpiry && (
+                    <div className="data-row">
+                      <span className="data-label">Expiry</span>
+                      <span className="data-value">{sd.warrantExpiry}</span>
+                    </div>
+                  )}
+                  {sd.warrantShares && (
+                    <div className="data-row">
+                      <span className="data-label">Shares Covered</span>
+                      <span className="data-value">{sd.warrantShares}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {sd.dilutionNote && (
+                <div style={{ marginTop:8, fontSize:12, color:'#8b949e', fontStyle:'italic', lineHeight:1.5 }}>
+                  ⚠️ {sd.dilutionNote}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Prescription data */}
+          {(sd.rxDrugName || sd.rxTRx) && (
+            <div className="panel-section">
+              <div style={s.sectionTitle}>💊 Prescription Data <span style={{ fontSize:10, color:'#6e7681', marginLeft:4 }}>{sd.rxSource||'IQVIA'}</span></div>
+              {sd.rxDrugName && (
+                <div className="data-row">
+                  <span className="data-label">Drug</span>
+                  <span className="data-value">{sd.rxDrugName}</span>
+                </div>
+              )}
+              {sd.rxIndication && (
+                <div className="data-row">
+                  <span className="data-label">Indication</span>
+                  <span className="data-value" style={{ fontSize:11, maxWidth:200, textAlign:'right' }}>{sd.rxIndication}</span>
+                </div>
+              )}
+              {sd.rxTRx && (
+                <div className="data-row">
+                  <span className="data-label">Weekly TRx</span>
+                  <span className="data-value" style={{ color:'#4ade80' }}>{sd.rxTRx}</span>
+                </div>
+              )}
+              {sd.rxNRx && (
+                <div className="data-row">
+                  <span className="data-label">Weekly NRx</span>
+                  <span className="data-value">{sd.rxNRx}</span>
+                </div>
+              )}
+              {sd.rxTrend && (
+                <div className="data-row">
+                  <span className="data-label">Script Trend</span>
+                  <span className="data-value" style={{ color: sd.rxTrend.includes('↑') || sd.rxTrend.toLowerCase().includes('up') ? '#4ade80' : '#ef4444' }}>{sd.rxTrend}</span>
+                </div>
+              )}
+              {sd.rxMarketShare && (
+                <div className="data-row">
+                  <span className="data-label">Market Share</span>
+                  <span className="data-value">{sd.rxMarketShare}</span>
+                </div>
+              )}
+              {sd.rxEarningsImplication && (
+                <div style={{ marginTop:8, padding:'8px 10px', background:'rgba(99,102,241,0.08)', borderRadius:6, fontSize:12, color:'#c9d1d9', lineHeight:1.5 }}>
+                  📈 {sd.rxEarningsImplication}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Key catalyst */}
+          {sd.keyCatalyst && (
+            <div className="panel-section">
+              <div style={s.sectionTitle}>🎯 Key Catalyst</div>
+              <div style={{ fontSize:13, color:'#c9d1d9', lineHeight:1.6 }}>{sd.keyCatalyst}</div>
+              {sd.secLink && (
+                <div style={{ marginTop:10 }}>
+                  <a href={sd.secLink} target="_blank" rel="noreferrer" className="sec-badge">
+                    🏛️ View SEC Filing ↗
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
