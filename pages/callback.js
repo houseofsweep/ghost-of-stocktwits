@@ -6,7 +6,8 @@ export async function getServerSideProps({ query, req, res }) {
   const { code, error } = query
 
   if (error || !code) {
-    return { redirect: { destination: '/?error=auth_cancelled', permanent: false } }
+    console.log('Callback error:', error, 'code present:', !!code, 'query:', JSON.stringify(query))
+    return { redirect: { destination: `/?error=${error || 'no_code'}`, permanent: false } }
   }
 
   try {
@@ -23,12 +24,13 @@ export async function getServerSideProps({ query, req, res }) {
       }),
     })
 
+    const tokenText = await tokenRes.text()
     if (!tokenRes.ok) {
-      console.error('Token exchange failed:', await tokenRes.text())
-      return { redirect: { destination: '/?error=token_failed', permanent: false } }
+      console.error('Token exchange failed:', tokenText)
+      return { redirect: { destination: `/?error=token_failed&detail=${encodeURIComponent(tokenText.slice(0,100))}`, permanent: false } }
     }
 
-    const tokens = await tokenRes.json()
+    const tokens = JSON.parse(tokenText)
 
     // Step 2: Get user info
     const userRes = await fetch('https://discord.com/api/users/@me', {
