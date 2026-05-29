@@ -133,21 +133,7 @@ export default function Home({ initialUser }) {
         .then(data => { setCatalysts(data.catalysts || []); setMeta(data.meta || null) })
         .catch(console.error)
         .finally(() => setDataLoading(false))
-      // Pre-fetch AI data for default watchlist tickers silently in background
-      const defaultTickers = ['NUVB','IDYA','OTLK','RVMD','VSTM','ATAI','SPRB','AMRZ']
-      setTimeout(() => {
-        defaultTickers.forEach((t, i) => {
-          setTimeout(() => {
-            fetch(`/api/stockai?ticker=${t}&v=7`)
-              .then(r => r.ok ? r.json() : null)
-              .then(aiData => {
-                if (aiData && !aiData.noData) {
-                  setStockData(prev => ({ ...prev, [t]: { ...prev[t], ...aiData, aiLoading: false, aiLoaded: true, aiV: 7 } }))
-                }
-              }).catch(() => {})
-          }, i * 3000) // stagger 3s apart to avoid rate limits
-        })
-      }, 2000) // start after 2s delay
+      // AI data fetched on hover/click only to avoid rate limits
     }
   }, [user?.isMember])
 
