@@ -142,6 +142,8 @@ export default function Home({ initialUser }) {
     if (!t) return
     // If we already have full data (with AI), don't reload
     if (stockData[t]?.aiLoaded) return
+    // If FMP data already loaded and AI is loading, don't restart
+    if (stockData[t]?.aiLoading) return
     setStockLoading(true)
     try {
       // Load FMP data first (fast ~1s)
@@ -731,6 +733,11 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
                 MCap: <span style={{ color:'#8b949e', fontWeight:600 }}>{sd.marketCap}</span>
               </span>
             )}
+            {sd.fdmc && (
+              <span style={{ fontSize:13, color:'#6e7681' }}>
+                FDMC: <span style={{ color:'#f59e0b', fontWeight:600 }}>{sd.fdmc}</span>
+              </span>
+            )}
             {sd.beta && (
               <span style={{ fontSize:13, color:'#6e7681' }}>
                 β <span style={{ color:'#8b949e', fontWeight:600 }}>{parseFloat(sd.beta).toFixed(2)}</span>
@@ -837,6 +844,26 @@ function StockPanel({ catalyst, stockData: sd, loading, onClose, onToggleStar, i
           {(sd.cash || sd.quarterlyBurn || sd.runway) && (
             <div className="panel-section">
               <div style={s.sectionTitle}>🏦 Balance Sheet</div>
+              {sd.sharesOutstanding && (
+                <div className="data-row">
+                  <span className="data-label">Shares Outstanding</span>
+                  <span className="data-value">{sd.sharesOutstanding}</span>
+                </div>
+              )}
+              {sd.fullyDilutedShares && (
+                <div className="data-row">
+                  <span className="data-label">Fully Diluted (FDO)</span>
+                  <span className="data-value" style={{ color:'#f59e0b' }}>{sd.fullyDilutedShares}</span>
+                </div>
+              )}
+              {sd.fdmc && (
+                <div className="data-row">
+                  <span className="data-label">Fully Diluted MCap</span>
+                  <span className="data-value" style={{ color:'#f59e0b', fontWeight:700 }}>{sd.fdmc}
+                    {sd.fdmcNote && <span style={{ fontSize:10, color:'#6e7681', display:'block', fontWeight:400 }}>{sd.fdmcNote}</span>}
+                  </span>
+                </div>
+              )}
               {sd.cash && (
                 <div className="data-row">
                   <span className="data-label">Cash on Hand</span>

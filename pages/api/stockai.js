@@ -44,8 +44,14 @@ export default async function handler(req, res) {
   "rxMarketShare": null,
   "rxEarningsImplication": null,
   "secFilings": [],
-  "catalogCatalysts": []
+  "catalogCatalysts": [],
+  "sharesOutstanding": null,
+  "fullyDilutedShares": null,
+  "fdmc": null,
+  "fdmcNote": null
 }
+
+Search specifically for: total shares outstanding, warrants outstanding (count), options outstanding, convertible notes (shares if converted), then calculate fully diluted shares = shares + warrants + options + convertible shares. Also calculate FDMC = fully diluted shares × current price.
 
 Search for: short float, IV rank, recent SEC 8-K filings with warrant/offering details, analyst price targets, prescription data if applicable.`
         }]
