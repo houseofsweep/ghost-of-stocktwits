@@ -1,27 +1,30 @@
 export default async function handler(req, res) {
-  const { ticker = 'OTLK' } = req.query
   const FMP = process.env.FMP_API_KEY
-  const results = { ticker }
+  const results = {}
 
-  const endpoints = [
-    `https://financialmodelingprep.com/stable/quote?symbol=${ticker}`,
-    `https://financialmodelingprep.com/stable/profile?symbol=${ticker}`,
-    `https://financialmodelingprep.com/stable/income-statement?symbol=${ticker}&period=quarter&limit=1`,
-    `https://financialmodelingprep.com/stable/balance-sheet-statement?symbol=${ticker}&period=quarter&limit=1`,
-    `https://financialmodelingprep.com/stable/cash-flow-statement?symbol=${ticker}&period=quarter&limit=1`,
-    `https://financialmodelingprep.com/stable/analyst-estimates?symbol=${ticker}&limit=2`,
-    `https://financialmodelingprep.com/stable/price-target-consensus?symbol=${ticker}`,
-    `https://financialmodelingprep.com/stable/sec-filings?symbol=${ticker}&formType=8-K&limit=3`,
+  // Test free endpoints that don't require symbol as premium param
+  const tests = [
+    // Earnings calendar - date range based, should be free
+    `https://financialmodelingprep.com/stable/earnings-calendar?from=2026-05-29&to=2026-08-30`,
+    // Economic calendar
+    `https://financialmodelingprep.com/stable/economic-calendar?from=2026-05-29&to=2026-06-30`,
+    // FDA calendar / biotech specific
+    `https://financialmodelingprep.com/stable/fda-calendar`,
+    // IPO calendar
+    `https://financialmodelingprep.com/stable/ipo-calendar?from=2026-05-29&to=2026-07-30`,
+    // Biotech catalyst
+    `https://financialmodelingprep.com/stable/bio-catalyst-calendar`,
   ]
 
-  for (const url of endpoints) {
+  for (const url of tests) {
     const key = url.split('/stable/')[1].split('?')[0]
     try {
       const r = await fetch(`${url}&apikey=${FMP}`)
       const text = await r.text()
       let data
-      try { data = JSON.parse(text) } catch { data = text.slice(0,150) }
-      results[key] = { status: r.status, ok: r.ok, sample: Array.isArray(data) ? data[0] : data }
+      try { data = JSON.parse(text) } catch { data = text.slice(0,200) }
+      const sample = Array.isArray(data) ? { count: data.length, first: data[0] } : data
+      results[key] = { status: r.status, ok: r.ok, sample }
     } catch(e) {
       results[key] = { error: e.message }
     }
