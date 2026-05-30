@@ -1,0 +1,28 @@
+name: Warm KV Cache
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger AI cache warm
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+            -H "x-cron-secret: $CRON_SECRET" \
+            --max-time 310 \
+            "https://ghost-of-stocktwits.vercel.app/api/cron/warm-ai")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          echo "Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Failed $HTTP_CODE"
+            exit 1
+          fi
+          echo "Cache warm complete"
