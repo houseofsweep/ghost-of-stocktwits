@@ -5,6 +5,9 @@
     },
     "pages/api/stockai.js": {
       "maxDuration": 60
+    },
+    "pages/api/cron/warm-ai.js": {
+      "maxDuration": 300
     }
   }
 }
