@@ -2,11 +2,12 @@ export const config = { maxDuration: 30 }
 
 const FMP = process.env.FMP_API_KEY
 const BASE = 'https://financialmodelingprep.com/stable'
+const BASE_V3 = 'https://financialmodelingprep.com/api/v3'
 
-async function get(path) {
+async function get(path, base = BASE) {
   const sep = path.includes('?') ? '&' : '?'
   try {
-    const r = await fetch(`${BASE}${path}${sep}apikey=${FMP}`)
+    const r = await fetch(`${base}${path}${sep}apikey=${FMP}`)
     if (!r.ok) return null
     const d = await r.json()
     if (d?.['Error Message'] || d?.error) return null
@@ -14,10 +15,10 @@ async function get(path) {
   } catch { return null }
 }
 
-async function getArr(path) {
+async function getArr(path, base = BASE) {
   const sep = path.includes('?') ? '&' : '?'
   try {
-    const r = await fetch(`${BASE}${path}${sep}apikey=${FMP}`)
+    const r = await fetch(`${base}${path}${sep}apikey=${FMP}`)
     if (!r.ok) return []
     const d = await r.json()
     if (!Array.isArray(d)) return []
@@ -27,10 +28,8 @@ async function getArr(path) {
 
 function fmt(n) {
   if (n == null) return null
-  // FMP sometimes returns values in full dollars, sometimes scaled
-  // Normalize: if abs value > 1e11 for a single company metric, likely needs /1000
   let v = n
-  if (Math.abs(v) > 5e11) v = v / 1000  // normalize trillion-scale to billions
+  if (Math.abs(v) > 5e11) v = v / 1000
   const a = Math.abs(v), s = v < 0 ? '-' : ''
   if (a >= 1e9) return `${s}$${(a/1e9).toFixed(1)}B`
   if (a >= 1e6) return `${s}$${(a/1e6).toFixed(1)}M`
@@ -40,11 +39,7 @@ function fmt(n) {
 
 function normalizeRaw(n, marketCapRaw) {
   if (n == null) return null
-  // FMP bug: some small-cap tickers return values 1,000,000x too large
-  // Detect by comparing to market cap — cash/burn can't be 1000x bigger than market cap
-  if (marketCapRaw && Math.abs(n) > marketCapRaw * 500) {
-    return n / 1000000
-  }
+  if (marketCapRaw && Math.abs(n) > marketCapRaw * 500) return n / 1000000
   return n
 }
 
@@ -68,43 +63,36 @@ export default async function handler(req, res) {
     const todayStr = today.toISOString().split('T')[0]
     const endStr = end120.toISOString().split('T')[0]
 
-    const [profile, quote, cf, bs, pt, earningsCal] = await Promise.all([
+    const [profile, quote, cf, bs, pt, earningsCal, shortData, secFilings] = await Promise.all([
       get(`/profile?symbol=${t}`),
       get(`/quote?symbol=${t}`),
       getArr(`/cash-flow-statement?symbol=${t}&period=quarter&limit=4`),
       getArr(`/balance-sheet-statement?symbol=${t}&period=quarter&limit=2`),
       get(`/price-target-consensus?symbol=${t}`),
       getArr(`/earnings-calendar?from=${todayStr}&to=${endStr}`),
+      get(`/stock-short-interest?symbol=${t}`),
+      getArr(`/sec_filings/${t}?type=8-K&page=0&limit=5`, BASE_V3),
     ])
 
     if (!profile && !quote) return res.status(404).json({ error: 'Ticker not found' })
 
-    // Price & company
     const price      = quote?.price ?? profile?.price ?? null
     const marketCap  = quote?.marketCap ?? profile?.mktCap ?? null
     const week52High = quote?.yearHigh ?? (profile?.range ? parseFloat(profile.range.split('-')[1]) : null)
     const week52Low  = quote?.yearLow  ?? (profile?.range ? parseFloat(profile.range.split('-')[0]) : null)
 
-    // Balance sheet — cash
     const latestBS   = bs[0] || null
     const cashRaw    = normalizeRaw(latestBS?.cashAndCashEquivalents ?? latestBS?.cashAndShortTermInvestments ?? null, marketCap)
     const totalDebt  = normalizeRaw(latestBS?.totalDebt ?? null, marketCap)
 
-    // Cash flow — burn rate
     const latestCF   = cf[0] || null
-    const prevCF     = cf[1] || null
-    // Use operating cash flow for burn — negative = cash burn
     const opCF       = normalizeRaw(latestCF?.operatingCashFlow ?? null, marketCap)
     const capEx      = normalizeRaw(latestCF?.capitalExpenditure ?? 0, marketCap)
-    // Quarterly burn = abs(operating CF) if negative
     const burnRaw    = opCF && opCF < 0 ? Math.abs(opCF) : null
     const runway     = cashRaw && burnRaw ? cashRaw / burnRaw : null
     const runwayMos  = runway ? Math.round(runway * 3) : null
-
-    // Free cash flow
     const fcf        = normalizeRaw(latestCF?.freeCashFlow ?? null, marketCap)
 
-    // Earnings from calendar
     const nextEarnings = earningsCal.find(e => e.symbol === t && new Date(e.date+'T00:00:00') >= today)
     const earningsDate = nextEarnings?.date ?? null
     const earningsDaysOut = earningsDate
@@ -113,13 +101,25 @@ export default async function handler(req, res) {
     const epsEstimated = nextEarnings?.epsEstimated ?? null
     const revenueEstimated = nextEarnings?.revenueEstimated ?? null
 
-    // Analyst price targets
     const targetLow    = pt?.priceTargetLow ?? null
     const targetHigh   = pt?.priceTargetHigh ?? null
     const targetMean   = pt?.priceTargetAverage ?? null
     const targetMedian = pt?.priceTargetMedian ?? null
 
-    // AI data loaded separately via /api/stockai
+    // Short interest from FMP
+    const shortFloat = shortData?.shortPercentFloat
+      ? `${(shortData.shortPercentFloat * 100).toFixed(1)}%`
+      : null
+    const shortShares = shortData?.shortInterest ?? null
+
+    // SEC filings from FMP (free, no AI needed)
+    const recentFilings = (secFilings || []).slice(0, 5).map(f => ({
+      date: f.filledDate?.split(' ')[0] ?? f.date ?? null,
+      type: f.type ?? '8-K',
+      title: f.finalLink ? 'View Filing' : null,
+      link: f.finalLink ?? f.link ?? null,
+    })).filter(f => f.date)
+
     return res.status(200).json({
       ticker: t,
       companyName:  profile?.companyName ?? null,
@@ -158,6 +158,9 @@ export default async function handler(req, res) {
       targetMean,
       targetHigh,
       targetMedian,
+      shortFloat,
+      shortShares,
+      secFilings: recentFilings,
       updatedAt: new Date().toISOString(),
     })
 
